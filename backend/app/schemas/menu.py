@@ -1,0 +1,31 @@
+from pydantic import BaseModel
+from typing import Optional
+
+class MenuCategoryCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class MenuCategoryResponse(MenuCategoryCreate):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+class MenuItemCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    price: float
+    category_id: int
+    is_available: bool = True
+
+class MenuItemResponse(MenuItemCreate):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+class MenuItemUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    is_available: Optional[bool] = None

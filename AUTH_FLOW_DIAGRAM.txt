@@ -1,0 +1,124 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║              FOOD ORDERING APP - AUTHENTICATION FLOW                      ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STEP 1: LOGIN (Get JWT Token)                                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Request:                                                               │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│  POST http://localhost:8000/api/v1/auth/login                          │
+│  Content-Type: application/json                                        │
+│                                                                         │
+│  {                                                                      │
+│    "email": "manager@dataudipi.com",                                   │
+│    "password": "password123"                                           │
+│  }                                                                      │
+│                                                                         │
+│  Response:                                                              │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│  HTTP/1.1 200 OK                                                       │
+│  Content-Type: application/json                                        │
+│                                                                         │
+│  {                                                                      │
+│    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ...",   │
+│    "token_type": "bearer",                                             │
+│    "user": {                                                            │
+│      "id": 2,                                                           │
+│      "name": "Udipi Manager",                                          │
+│      "role": "HOTEL_ADMIN",                                            │
+│      "restaurant_id": 1                                                │
+│    }                                                                    │
+│  }                                                                      │
+│                                                                         │
+│  ✅ SUCCESS! Copy the access_token value                               │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+                                    ⬇️
+                         (Copy access_token)
+                                    ⬇️
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STEP 2: USE TOKEN TO ACCESS MENU ITEMS                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Request:                                                               │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│  GET http://localhost:8000/api/v1/menu/items                           │
+│  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ...   │
+│  Accept: application/json                                              │
+│                                                                         │
+│  Response:                                                              │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│  HTTP/1.1 200 OK                                                       │
+│  Content-Type: application/json                                        │
+│                                                                         │
+│  [                                                                      │
+│    {                                                                    │
+│      "id": 16,                                                         │
+│      "name": "Jeera Nan",                                              │
+│      "description": "Nan with jeera",                                  │
+│      "price": 60.0,                                                    │
+│      "category_id": 1,                                                 │
+│      "is_available": true                                              │
+│    },                                                                   │
+│    {                                                                    │
+│      "id": 17,                                                         │
+│      "name": "Roti",                                                   │
+│      "description": "Plain Roti",                                      │
+│      "price": 30.0,                                                    │
+│      "category_id": 1,                                                 │
+│      "is_available": true                                              │
+│    },                                                                   │
+│    ... 51 more items ...                                               │
+│  ]                                                                      │
+│                                                                         │
+│  ✅ SUCCESS! Got 53 menu items from restaurant 1                       │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                        AUTHORIZATION RULES                                ║
+╠═══════════════════════════════════════════════════════════════════════════╣
+║                                                                           ║
+║  HOTEL_ADMIN (restaurant_id = 1)                                         ║
+║  ├─ Can access menu items from restaurant 1 ONLY                        ║
+║  ├─ Token has: role=HOTEL_ADMIN, restaurant_id=1                       ║
+║  ├─ Returns: 53 items from restaurant 1                                 ║
+║  └─ Cannot see items from other restaurants                            ║
+║                                                                           ║
+║  SUPER_ADMIN (restaurant_id = null)                                      ║
+║  ├─ Can access menu items from ALL restaurants                          ║
+║  ├─ Token has: role=SUPER_ADMIN, restaurant_id=null                     ║
+║  ├─ Returns: 54 items from all restaurants                              ║
+║  └─ Can see all data across all restaurants                             ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                    HEADER FORMAT (VERY IMPORTANT!)                        ║
+╠═══════════════════════════════════════════════════════════════════════════╣
+║                                                                           ║
+║  ✅ CORRECT:                                                              ║
+║  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ...   ║
+║                 ^^^^^^ ^^^^                                              ║
+║                 Type  Space (important!)                                 ║
+║                                                                           ║
+║  ❌ WRONG:                                                                ║
+║  Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ...           ║
+║  (missing "Bearer")                                                     ║
+║                                                                           ║
+║  ❌ WRONG:                                                                ║
+║  Authorization: BearereyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ...    ║
+║  (no space)                                                             ║
+║                                                                           ║
+║  ❌ WRONG:                                                                ║
+║  auth: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ...                    ║
+║  (wrong header name)                                                    ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+

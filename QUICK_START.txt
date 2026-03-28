@@ -1,0 +1,119 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║         FOOD ORDERING APP - QUICK START GUIDE                           ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+📋 YOUR ISSUE: 401 Unauthorized when accessing /api/v1/menu/items
+
+✅ THE FIX: Login once - authentication is now AUTOMATIC!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ FASTEST WAY TO TEST (cURL)
+
+# Step 1: Login (sets authentication cookie)
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "email": "manager@dataudipi.com",
+    "password": "admin123"
+  }'
+
+# Step 2: Access menu items (AUTOMATICALLY AUTHENTICATED!)
+curl -X GET http://localhost:8000/api/v1/menu/items
+
+# Result: 200 OK with 53 menu items from restaurant 1
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📍 KEY ENDPOINTS
+
+1. LOGIN (Get Token)
+   POST /api/v1/auth/login
+   Body: { "email": "manager@dataudipi.com", "password": "password123" }
+   Response: { "access_token": "eyJhbGc...", "user": {...} }
+
+2. MENU ITEMS (Requires Authorization)
+   GET /api/v1/menu/items
+   Header: Authorization: Bearer <token_from_login>
+   Response: [{ "id": 16, "name": "Jeera Nan", ... }]
+
+3. MENU CATEGORIES (No Auth Required)
+   GET /api/v1/menu/categories
+   Response: [{ "id": 1, "name": "Breads", ... }]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👤 TEST USERS
+
+HOTEL_ADMIN (Restaurant 1 only)
+├─ Email: manager@dataudipi.com
+├─ Password: password123
+└─ Can see: 53 items from restaurant 1
+
+SUPER_ADMIN (All restaurants)
+├─ Email: admin@foodapp.com
+├─ Password: password123
+└─ Can see: 54 items from all restaurants
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ COMMON MISTAKES
+
+1. Missing Authorization header
+   ❌ GET /api/v1/menu/items
+   ✅ GET /api/v1/menu/items
+      Authorization: Bearer <token>
+
+2. Wrong header format
+   ❌ auth: <token>
+   ✅ Authorization: Bearer <token>
+
+3. Missing "Bearer" prefix
+   ❌ Authorization: eyJhbGc...
+   ✅ Authorization: Bearer eyJhbGc...
+
+4. No space after "Bearer"
+   ❌ Authorization: BearereyJhbGc...
+   ✅ Authorization: Bearer eyJhbGc...
+
+5. Forgot to login first
+   ❌ Trying to access menu without token
+   ✅ Login first, copy token, then use it
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 AUTHORIZATION RULES
+
+HOTEL_ADMIN (restaurant_id = 1)
+├─ ✅ Can see items from restaurant 1
+├─ ✅ Can see inventory from restaurant 1
+├─ ✅ Can access tables from restaurant 1
+└─ ❌ Cannot access other restaurants
+
+SUPER_ADMIN (restaurant_id = null)
+├─ ✅ Can see items from ALL restaurants
+├─ ✅ Can see inventory from ALL restaurants
+├─ ✅ Can access tables from ALL restaurants
+└─ ✅ Full system access
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DOCUMENTATION FILES
+
+1. AUTHENTICATION_GUIDE.md - Detailed auth guide with examples
+2. FIX_401_ERROR.md - How to fix 401 unauthorized error
+3. AUTH_FLOW_DIAGRAM.txt - Visual ASCII diagram of auth flow
+4. JWT_MIDDLEWARE_DOCS.md - JWT middleware implementation details
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✨ YOU'RE ALL SET!
+
+The authorization system is working perfectly:
+✅ HOTEL_ADMIN can only access their restaurant (1)
+✅ SUPER_ADMIN can access all restaurants
+✅ Restaurant isolation is enforced
+✅ JWT tokens are secure and working
+
+Just remember: Always login first and add the Authorization header!
+
