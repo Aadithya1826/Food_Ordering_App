@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..db import SessionLocal
 from ..models.order import Order, OrderItem
-from ..schemas.order import OrderStatusUpdate, OrderResponse
+from ..schemas.order import OrderStatusUpdate
+from ..utils.dependencies import get_current_user
+from ..utils.roles import require_role, resolve_restaurant_id, require_restaurant_access
 
 router = APIRouter()
 
@@ -15,9 +17,19 @@ def get_db():
 
 # GET live orders
 @router.get("/api/v1/orders/live", response_model=list[dict])
-def get_live_orders(db: Session = Depends(get_db)):
-    orders = db.query(Order).filter(Order.status != "SERVED").all()
+def get_live_orders(
+    restaurant_id: int | None = None,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    require_role(user, ["HOTEL_ADMIN", "SUPER_ADMIN"])
 
+    restaurant_id = resolve_restaurant_id(user, restaurant_id)
+    query = db.query(Order).filter(Order.status != "SERVED")
+    if restaurant_id is not None:
+        query = query.filter(Order.restaurant_id == restaurant_id)
+
+    orders = query.all()
     response = []
     for o in orders:
         items = [
@@ -42,12 +54,19 @@ def get_live_orders(db: Session = Depends(get_db)):
 
 # PATCH order status
 @router.patch("/api/v1/orders/{order_id}/status", response_model=dict)
-def update_status(order_id: int, data: OrderStatusUpdate, db: Session = Depends(get_db)):
+def update_status(
+    order_id: int,
+    data: OrderStatusUpdate,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    require_role(user, ["HOTEL_ADMIN", "SUPER_ADMIN"])
+
     order = db.query(Order).filter(Order.id == order_id).first()
-    
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
+
+    require_restaurant_access(user, order.restaurant_id)
     order.status = data.status
     db.commit()
 

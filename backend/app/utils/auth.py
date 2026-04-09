@@ -1,9 +1,11 @@
+import os
+
 from jose import jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 
-SECRET_KEY = "secret"
+SECRET_KEY = os.getenv("SECRET_KEY", "secret")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 

@@ -4,6 +4,7 @@ from typing import Optional
 class MenuCategoryCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    restaurant_id: Optional[int] = None
 
 class MenuCategoryResponse(MenuCategoryCreate):
     id: int
@@ -16,6 +17,7 @@ class MenuItemCreate(BaseModel):
     description: Optional[str] = None
     price: float
     category_id: int
+    restaurant_id: Optional[int] = None
     is_available: bool = True
 
 class MenuItemResponse(MenuItemCreate):

@@ -73,3 +73,32 @@ def filter_by_user_restaurant(user, query):
         status_code=status.HTTP_403_FORBIDDEN,
         detail="User is not assigned to any restaurant"
     )
+
+
+def resolve_restaurant_id(user, restaurant_id: int | None = None) -> int | None:
+    """
+    Resolve the effective restaurant_id for the current user.
+
+    - SUPER_ADMIN: May pass an explicit restaurant_id or request all restaurants if None.
+    - HOTEL_ADMIN: Always returns their assigned restaurant_id.
+    """
+    if user.role == "SUPER_ADMIN":
+        return restaurant_id
+
+    if user.role == "HOTEL_ADMIN":
+        if user.restaurant_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Hotel admin must have a restaurant assigned"
+            )
+        if restaurant_id is not None and restaurant_id != user.restaurant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Hotel admin can only access restaurant {user.restaurant_id}"
+            )
+        return user.restaurant_id
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Access denied: Role '{user.role}' is not authorized"
+    )
