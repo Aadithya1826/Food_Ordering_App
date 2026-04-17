@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { restaurantService } from '../services/api';
 import { ChevronRight, LogOut, AlertCircle, Loader, Eye, EyeOff } from 'lucide-react';
 import RestaurantBG from '../assets/restaurant_bg.png';
 import UdupiBanner from '../assets/udupi-banner.png';
@@ -9,7 +10,7 @@ import ChefMascot from '../assets/chef_mascot.png';
 
 const Onboarding = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, signup } = useAuth();
 
   // States
   const [step, setStep] = useState('role'); // 'role', 'auth'
@@ -17,6 +18,7 @@ const Onboarding = () => {
   const [authMode, setAuthMode] = useState('login'); // 'login', 'signup'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   // Form states
@@ -25,7 +27,10 @@ const Onboarding = () => {
     email: '',
     password: '',
     confirmPassword: '',
+    restaurant_id: '',
   });
+  const [restaurants, setRestaurants] = useState([]);
+  const [restaurantLoading, setRestaurantLoading] = useState(false);
 
   const roles = [
     {
@@ -48,14 +53,37 @@ const Onboarding = () => {
   const handleRoleSelect = (roleId) => {
     setSelectedRole(roleId);
     setError('');
-    setFormData({ name: '', email: '', password: '', confirmPassword: '' });
+    setSuccessMessage('');
+    setFormData({ name: '', email: '', password: '', confirmPassword: '', restaurant_id: '' });
     setStep('auth');
   };
+
+  useEffect(() => {
+    const fetchRestaurants = async () => {
+      if (selectedRole !== 'hotel_manager' || step !== 'auth') {
+        return;
+      }
+
+      setRestaurantLoading(true);
+      try {
+        const data = await restaurantService.getPublicRestaurants();
+        setRestaurants(data);
+      } catch (err) {
+        console.error('Failed to load restaurants', err);
+        setError('Unable to load restaurant list. Please try again later.');
+      } finally {
+        setRestaurantLoading(false);
+      }
+    };
+
+    fetchRestaurants();
+  }, [selectedRole, step]);
 
   // Handle form changes
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const parsedValue = name === 'restaurant_id' ? (value ? parseInt(value, 10) : '') : value;
+    setFormData((prev) => ({ ...prev, [name]: parsedValue }));
     setError('');
   };
 
@@ -69,9 +97,16 @@ const Onboarding = () => {
       return;
     }
 
+    if (!selectedRole) {
+      setError('Please select a role before logging in.');
+      setLoading(false);
+      return;
+    }
+
+    const roleParam = selectedRole === 'super_admin' ? 'SUPER_ADMIN' : 'HOTEL_ADMIN';
     setLoading(true);
     try {
-      await login(formData.email, formData.password);
+      await login(formData.email, formData.password, roleParam);
       // Navigate based on role
       const roleData = roles.find((r) => r.id === selectedRole);
       navigate(selectedRole === 'super_admin' ? '/admin-dashboard' : '/manager-dashboard', {
@@ -104,8 +139,40 @@ const Onboarding = () => {
       return;
     }
 
-    // TODO: Implement signup API call
-    setError('Signup functionality coming soon');
+    if (!selectedRole) {
+      setError('Please select a role before signing up.');
+      return;
+    }
+
+    const roleParam = selectedRole === 'super_admin' ? 'SUPER_ADMIN' : 'HOTEL_ADMIN';
+    if (roleParam === 'HOTEL_ADMIN' && !formData.restaurant_id) {
+      setError('Please select a restaurant for the hotel manager account.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await signup(
+        formData.name,
+        formData.email,
+        formData.password,
+        roleParam,
+        roleParam === 'HOTEL_ADMIN' ? formData.restaurant_id : null
+      );
+      setSuccessMessage('Signup done successfully. Please sign in to login.');
+      setError('');
+      setAuthMode('login');
+      setFormData((prev) => ({
+        ...prev,
+        password: '',
+        confirmPassword: '',
+      }));
+    } catch (err) {
+      setSuccessMessage('');
+      setError(err.response?.data?.detail || 'Signup failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handle back to role selection
@@ -207,6 +274,13 @@ const Onboarding = () => {
           {selectedRole === 'super_admin' ? '👤 Super Admin Account' : '🍽️ Hotel Manager Account'}
         </div>
 
+        {/* Success Message */}
+        {successMessage && (
+          <div className="success-message">
+            <span>{successMessage}</span>
+          </div>
+        )}
+
         {/* Error Message */}
         {error && (
           <div className="error-message">
@@ -229,6 +303,7 @@ const Onboarding = () => {
             onClick={() => {
               setAuthMode('login');
               setError('');
+              setSuccessMessage('');
             }}
             style={{
               flex: 1,
@@ -249,6 +324,7 @@ const Onboarding = () => {
             onClick={() => {
               setAuthMode('signup');
               setError('');
+              setSuccessMessage('');
             }}
             style={{
               flex: 1,
@@ -298,6 +374,31 @@ const Onboarding = () => {
               disabled={loading}
             />
           </div>
+
+          {/* Restaurant Selection - Only for hotel manager signup */}
+          {authMode === 'signup' && selectedRole === 'hotel_manager' && (
+            <div className="form-group">
+              <label className="form-label">Restaurant</label>
+              <select
+                name="restaurant_id"
+                className="form-input"
+                value={formData.restaurant_id}
+                onChange={handleFormChange}
+                disabled={loading || restaurantLoading}
+              >
+                <option value="">Select a restaurant</option>
+                {restaurants.map((restaurant) => (
+                  <option key={restaurant.id} value={restaurant.id}>
+                    {restaurant.name}
+                  </option>
+                ))}
+              </select>
+              {restaurantLoading && <div className="input-note">Loading restaurants…</div>}
+              {!restaurantLoading && selectedRole === 'hotel_manager' && restaurants.length === 0 && (
+                <div className="input-note">No restaurants available. Please contact your admin.</div>
+              )}
+            </div>
+          )}
 
           {/* Password Field */}
           <div className="form-group">

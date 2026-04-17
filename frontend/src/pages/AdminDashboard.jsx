@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -17,12 +17,25 @@ import {
   MapPin,
 } from 'lucide-react';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
+import { restaurantService, tableService } from '../services/api';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activePage, setActivePage] = useState('dashboard');
+  const [tables, setTables] = useState([]);
+  const [tablesLoading, setTablesLoading] = useState(true);
+  const [tablesError, setTablesError] = useState(null);
+
+  const [hotels, setHotels] = useState([]);
+  const [hotelsLoading, setHotelsLoading] = useState(true);
+  const [hotelsError, setHotelsError] = useState(null);
+  const [hotelSearch, setHotelSearch] = useState('');
+  const [showAddHotel, setShowAddHotel] = useState(false);
+  const [newHotel, setNewHotel] = useState({ name: '', address: '', phone: '' });
+  const [createError, setCreateError] = useState(null);
+  const [creatingHotel, setCreatingHotel] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -36,6 +49,37 @@ const AdminDashboard = () => {
     { id: 'reports', label: 'Reports', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
+
+  useEffect(() => {
+    const fetchTables = async () => {
+      try {
+        setTablesLoading(true);
+        const response = await tableService.getTables();
+        setTables(response);
+      } catch (error) {
+        console.error('Error fetching tables:', error);
+        setTablesError('Unable to load table details.');
+      } finally {
+        setTablesLoading(false);
+      }
+    };
+
+    const fetchHotels = async () => {
+      try {
+        setHotelsLoading(true);
+        const response = await restaurantService.getAdminRestaurants();
+        setHotels(response);
+      } catch (error) {
+        console.error('Error fetching hotels:', error);
+        setHotelsError('Unable to load hotels.');
+      } finally {
+        setHotelsLoading(false);
+      }
+    };
+
+    fetchTables();
+    fetchHotels();
+  }, []);
 
   // Sample data
   const stats = [
@@ -83,6 +127,45 @@ const AdminDashboard = () => {
     { type: 'venue_activated', message: 'Venue activated', details: 'Coastal Kitchen - Branch 2', time: '6 hours ago' },
     { type: 'hotel_deactivated', message: 'Hotel deactivated', details: 'Old Mysore Cafe', time: '1 day ago' },
   ];
+
+  const filteredHotels = hotels.filter((hotel) => {
+    const query = hotelSearch.toLowerCase();
+    return (
+      hotel.name.toLowerCase().includes(query) ||
+      (hotel.address || '').toLowerCase().includes(query) ||
+      (hotel.phone || '').toLowerCase().includes(query)
+    );
+  });
+
+  const handleNewHotelChange = (e) => {
+    const { name, value } = e.target;
+    setNewHotel((prev) => ({ ...prev, [name]: value }));
+    setCreateError(null);
+  };
+
+  const handleCreateHotel = async (e) => {
+    e.preventDefault();
+    setCreateError(null);
+
+    if (!newHotel.name.trim()) {
+      setCreateError('Hotel name is required');
+      return;
+    }
+
+    try {
+      setCreatingHotel(true);
+      await restaurantService.createRestaurant(newHotel);
+      const response = await restaurantService.getAdminRestaurants();
+      setHotels(response);
+      setShowAddHotel(false);
+      setNewHotel({ name: '', address: '', phone: '' });
+    } catch (error) {
+      console.error('Error creating hotel:', error);
+      setCreateError(error.response?.data?.detail || 'Unable to create hotel.');
+    } finally {
+      setCreatingHotel(false);
+    }
+  };
 
   return (
     <div className={`admin-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-collapsed'}`}>
@@ -255,6 +338,57 @@ const AdminDashboard = () => {
                 </table>
               </div>
 
+              {/* Table Inventory Section */}
+              <div className="admin-table-card" style={{ marginTop: '24px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>Table Inventory</h2>
+                {tablesLoading ? (
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Loading table details...</p>
+                ) : tablesError ? (
+                  <p style={{ color: '#c0392b', fontSize: '14px' }}>{tablesError}</p>
+                ) : tables.length === 0 ? (
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>No table records available.</p>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ textAlign: 'left', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                          Table ID
+                        </th>
+                        <th style={{ textAlign: 'left', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                          Table Number
+                        </th>
+                        <th style={{ textAlign: 'left', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                          Restaurant
+                        </th>
+                        <th style={{ textAlign: 'left', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                          QR Code
+                        </th>
+                        <th style={{ textAlign: 'right', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                          Created At
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tables.map((table) => (
+                        <tr key={table.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '16px 0', fontSize: '14px' }}>{table.id}</td>
+                          <td style={{ padding: '16px 0', fontSize: '14px', fontWeight: '600' }}>{table.table_number}</td>
+                          <td style={{ padding: '16px 0', fontSize: '14px', color: 'var(--text-secondary)' }}>{table.restaurant_id ?? '—'}</td>
+                          <td style={{ padding: '16px 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                            <a href={table.qr_code} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>
+                              View QR
+                            </a>
+                          </td>
+                          <td style={{ padding: '16px 0', textAlign: 'right', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                            {new Date(table.created_at).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
               {/* Recent Activity Section */}
               <div className="admin-activity-card">
                 <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>Recent Activity</h2>
@@ -301,10 +435,273 @@ const AdminDashboard = () => {
           )}
 
           {activePage === 'hotels' && (
-            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <Building2 size={48} style={{ margin: '0 auto 20px', color: 'var(--text-secondary)', opacity: 0.5 }} />
-              <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>Hotels Management</h3>
-              <p style={{ color: 'var(--text-secondary)' }}>Hotels management interface - coming soon</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Header */}
+              <div>
+                <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', marginBottom: '8px' }}>Hotels & Venues</h2>
+                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>
+                  Manage hotel records from the restaurant table. Add new hotels, search existing venues, and review address and contact details.
+                </p>
+              </div>
+
+              {/* Add Hotel Button - Full Width */}
+              <button
+                onClick={() => setShowAddHotel(true)}
+                className="btn btn-primary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '14px 16px',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  letterSpacing: '0.5px',
+                  textTransform: 'uppercase',
+                }}
+              >
+                <Building2 size={18} />
+                Add Hotel
+              </button>
+
+              {/* Search Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+                <input
+                  type="text"
+                  value={hotelSearch}
+                  onChange={(e) => setHotelSearch(e.target.value)}
+                  placeholder="Search hotels..."
+                  style={{
+                    flex: 1,
+                    maxWidth: '300px',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--surface)',
+                    color: 'var(--text-primary)',
+                    fontSize: '14px',
+                  }}
+                />
+                <span style={{ color: 'var(--text-secondary)', fontSize: '13px', whiteSpace: 'nowrap' }}>
+                  {filteredHotels.length} hotels registered on the platform
+                </span>
+              </div>
+
+              {/* Hotels Grid */}
+              {hotelsLoading ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  Loading hotels...
+                </div>
+              ) : hotelsError ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: '#c0392b' }}>{hotelsError}</div>
+              ) : filteredHotels.length === 0 ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  No hotels match your search.
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                    gap: '16px',
+                  }}
+                >
+                  {filteredHotels.map((hotel) => (
+                    <div
+                      key={hotel.id}
+                      style={{
+                        background: '#FFFFFF',
+                        borderRadius: '12px',
+                        padding: '20px',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        transition: 'all 0.25s ease',
+                        cursor: 'pointer',
+                        position: 'relative',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.14)';
+                        e.currentTarget.style.transform = 'translateY(-4px)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                      }}
+                    >
+                      {/* Hotel Icon at Top Left */}
+                      <div style={{ position: 'absolute', top: '16px', left: '16px' }}>
+                        <Building2 size={24} color="#ff8c42" />
+                      </div>
+
+                      {/* Status Badge */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '12px', paddingTop: '8px' }}>
+                        <span
+                          style={{
+                            background: '#d4edda',
+                            color: '#155724',
+                            borderRadius: '20px',
+                            padding: '4px 10px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.3px',
+                          }}
+                        >
+                          Active
+                        </span>
+                      </div>
+
+                      {/* Hotel Name */}
+                      <h4 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#1a1a1a', marginBottom: '4px' }}>
+                        {hotel.name}
+                      </h4>
+
+                      {/* Location */}
+                      <p style={{ margin: '0 0 16px 0', color: '#666', fontSize: '13px' }}>
+                        {hotel.address || 'No address provided'}
+                      </p>
+
+                      {/* Data Rows */}
+                      <div style={{ fontSize: '12px', lineHeight: '1.8', color: '#555', flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#888' }}>Phone</span>
+                          <span style={{ fontWeight: '500' }}>{hotel.phone || '—'}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
+                          <span style={{ color: '#888' }}>Created</span>
+                          <span style={{ fontWeight: '500' }}>
+                            {hotel.created_at ? new Date(hotel.created_at).toLocaleDateString() : '—'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
+                          <span style={{ color: '#888' }}>Hotel ID:</span>
+                          <span style={{ fontWeight: '500', color: '#0066cc' }}>{hotel.id}</span>
+                        </div>
+                      </div>
+
+                      {/* Manager Name at Bottom Corner */}
+                      <div style={{ 
+                        position: 'absolute', 
+                        bottom: '16px', 
+                        right: '16px', 
+                        fontSize: '11px', 
+                        color: '#888', 
+                        fontWeight: '500',
+                        background: 'rgba(255, 255, 255, 0.9)',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid #eee'
+                      }}>
+                        {hotel.manager_name ? `Manager: ${hotel.manager_name}` : 'No manager assigned'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showAddHotel && (
+                <div
+                  style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0,0,0,0.45)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 50,
+                    padding: '24px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '100%',
+                      maxWidth: '520px',
+                      background: 'var(--surface)',
+                      borderRadius: '24px',
+                      padding: '28px',
+                      boxShadow: '0 24px 80px rgba(0,0,0,0.14)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '20px' }}>Add Hotel</h3>
+                        <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                          Create a new hotel record in the restaurant table.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setShowAddHotel(false);
+                          setCreateError(null);
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          fontSize: '20px',
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <form onSubmit={handleCreateHotel} style={{ display: 'grid', gap: '16px' }}>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Hotel Name
+                        <input
+                          type="text"
+                          name="name"
+                          value={newHotel.name}
+                          onChange={handleNewHotelChange}
+                          placeholder="Enter hotel name"
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Address
+                        <input
+                          type="text"
+                          name="address"
+                          value={newHotel.address}
+                          onChange={handleNewHotelChange}
+                          placeholder="Enter hotel address"
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Phone
+                        <input
+                          type="text"
+                          name="phone"
+                          value={newHotel.phone}
+                          onChange={handleNewHotelChange}
+                          placeholder="Enter contact phone"
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                        />
+                      </label>
+                      {createError && <p style={{ color: '#c0392b', fontSize: '13px' }}>{createError}</p>}
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddHotel(false);
+                            setCreateError(null);
+                          }}
+                          className="btn btn-secondary"
+                          style={{ minWidth: '120px' }}
+                        >
+                          Cancel
+                        </button>
+                        <button type="submit" className="btn btn-primary" disabled={creatingHotel} style={{ minWidth: '120px' }}>
+                          {creatingHotel ? 'Creating...' : 'Create Hotel'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -4,6 +4,14 @@ from typing import Optional
 class LoginRequest(BaseModel):
     email: str
     password: str
+    role: Optional[str] = None
+
+class SignupRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    role: Optional[str] = None
+    restaurant_id: Optional[int] = None
 
 class UserResponse(BaseModel):
     id: int

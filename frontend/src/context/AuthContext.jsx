@@ -33,6 +33,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const signup = async (name, email, password, role = null, restaurantId = null) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await authService.signup(name, email, password, role, restaurantId);
+      setUser(response.user);
+      return response;
+    } catch (err) {
+      const errorMsg = err.response?.data?.detail || err.message || 'Signup failed';
+      setError(errorMsg);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     setLoading(true);
     try {
@@ -51,6 +67,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     error,
     login,
+    signup,
     logout,
     isAuthenticated: !!user,
   };

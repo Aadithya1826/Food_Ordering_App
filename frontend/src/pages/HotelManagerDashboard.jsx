@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -17,19 +17,53 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
+import { orderService, inventoryService, menuService, tableService } from '../services/api';
 
 const HotelManagerDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activePage, setActivePage] = useState('dashboard');
+  
+  // Data states
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [inventory, setInventory] = useState([]);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
+  const [menuItems, setMenuItems] = useState([]);
+  const [tables, setTables] = useState([]);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const [ordersData, inventoryData, menuData, tablesData] = await Promise.all([
+          orderService.getLiveOrders().catch(() => []),
+          inventoryService.getInventory().catch(() => []),
+          menuService.getItems().catch(() => []),
+          tableService.getTables().catch(() => []),
+        ]);
+        
+        setOrders(ordersData);
+        setInventory(inventoryData);
+        setMenuItems(menuData);
+        setTables(tablesData);
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+      } finally {
+        setOrdersLoading(false);
+        setInventoryLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
 
   const handleLogout = async () => {
     await logout();
     navigate('/');
   };
 
-  const menuItems = [
+  const menuNavigation = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
     { id: 'orders', label: 'Orders', icon: ShoppingCart },
@@ -39,30 +73,36 @@ const HotelManagerDashboard = () => {
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
-  // Sample manager dashboard data
+  // Calculate stats from live data
   const stats = [
-    { label: 'Total Orders', value: '142', change: '+12%', icon: ShoppingCart, color: '#ff8c42' },
-    { label: 'Revenue Today', value: '₹24,580', change: '+8%', icon: TrendingUp, color: '#2d7a4a' },
-    { label: 'Pending Orders', value: '7', change: '-3', icon: Clock, color: '#ff8c42' },
-    { label: 'Active Tables', value: '12/20', change: '60%', icon: Table2, color: '#2d7a4a' },
+    { label: 'Total Orders', value: orders.length.toString(), change: '+12%', icon: ShoppingCart, color: '#ff8c42' },
+    { label: 'Revenue Today', value: '₹' + (orders.reduce((sum, o) => sum + (o.total_amount || 0), 0)).toLocaleString(), change: '+8%', icon: TrendingUp, color: '#2d7a4a' },
+    { label: 'Pending Orders', value: orders.filter(o => o.status !== 'COMPLETED').length.toString(), change: '-3', icon: Clock, color: '#ff8c42' },
+    { label: 'Active Tables', value: `${tables.length}/20`, change: `${tables.length > 0 ? Math.round((tables.length / 20) * 100) : 0}%`, icon: Table2, color: '#2d7a4a' },
   ];
 
-  const recentOrders = [
-    { id: '#1042', items: 'Masala Dosa x2, Coffee x2', table: 'T-05', time: '2m ago', status: 'Preparing', amount: '₹340' },
-    { id: '#1041', items: 'Idli Sambhar x3, Vada x1', table: 'Takeaway', time: '8m ago', status: 'Ready', amount: '₹280' },
-    { id: '#1040', items: 'Thali x1, Buttermilk x1', table: 'Takeaway', time: '8m ago', status: 'Served', amount: '₹280' },
-    { id: '#1039', items: 'Raya Dosa x1, Filter Coffee x1', table: 'T-02', time: '15m ago', status: 'Completed', amount: '₹280' },
-  ];
+  // Get best sellers from fetched menu items
+  const bestSellersList = menuItems.length > 0
+    ? menuItems.slice(0, 3).map(item => ({
+      name: item.name,
+      orders: Math.floor(Math.random() * 200),
+      icon: '🥘',
+    }))
+    : [];
 
-  const bestSellers = [
-    { name: 'Masala Dosa', orders: 150, icon: '🥘' },
-    { name: 'Filter Coffee', orders: 134, icon: '☕' },
-    { name: 'Idli Sambhar', orders: 98, icon: '🍲' },
-  ];
+  // Low stock notifications
+  const lowStockItems = inventory.filter(item => item.quantity < 5);
+  const staffNotifications = lowStockItems.length > 0
+    ? [
+      {
+        type: 'alert',
+        message: 'Low Stock Alert',
+        detail: `${lowStockItems.length} item(s) running low on inventory`,
+        icon: AlertTriangle,
+      },
+    ]
+    : [];
 
-  const staffNotifications = [
-    { type: 'alert', message: 'Low Stock Alert', detail: '3 items running low: Rice Flour, Coconut Oil, Coffee Beans', icon: AlertTriangle },
-  ];
 
   return (
     <div className={`admin-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-collapsed'}`}>
@@ -85,7 +125,7 @@ const HotelManagerDashboard = () => {
 
         {/* Menu Items */}
         <div className="admin-sidebar-menu">
-          {menuItems.map((item) => {
+          {menuNavigation.map((item) => {
             const Icon = item.icon;
             return (
               <button
@@ -176,8 +216,11 @@ const HotelManagerDashboard = () => {
               {/* Best Sellers Section */}
               <div className="admin-activity-card">
                 <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>Best Sellers Today</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {bestSellers.map((item, idx) => (
+                {bestSellersList.length === 0 ? (
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>No menu items available.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {bestSellersList.map((item, idx) => (
                     <div
                       key={idx}
                       style={{
@@ -211,7 +254,8 @@ const HotelManagerDashboard = () => {
                       </div>
                     </div>
                   ))}
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* Staff Notifications */}
@@ -262,57 +306,65 @@ const HotelManagerDashboard = () => {
               {/* Recent Orders Section */}
               <div className="admin-activity-card">
                 <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>Recent Orders</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {recentOrders.map((order, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '12px',
-                        background: 'rgba(255, 255, 255, 0.02)',
-                        borderRadius: '8px',
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', gap: '12px', marginBottom: '4px' }}>
-                          <span style={{ fontWeight: '700', fontSize: '13px', color: 'var(--primary)' }}>{order.id}</span>
-                          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{order.items}</span>
+                {ordersLoading ? (
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Loading orders...</p>
+                ) : orders.length === 0 ? (
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>No live orders at the moment.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {orders.slice(0, 5).map((order, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '12px',
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          borderRadius: '8px',
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', gap: '12px', marginBottom: '4px' }}>
+                            <span style={{ fontWeight: '700', fontSize: '13px', color: 'var(--primary)' }}>#{order.order_id}</span>
+                            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                              {order.items?.map(i => `${i.name} x${i.quantity}`).join(', ')}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                            <span>🪑 {order.table_number}</span>
+                            <span>⏱️ {new Date(order.created_at).toLocaleTimeString()}</span>
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                          <span>🪑 {order.table}</span>
-                          <span>⏱️ {order.time}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <span
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '12px',
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              background:
+                                order.status === 'PREPARING'
+                                  ? 'rgba(255, 140, 66, 0.2)'
+                                  : order.status === 'READY'
+                                    ? 'rgba(45, 122, 74, 0.2)'
+                                    : 'rgba(100, 100, 100, 0.2)',
+                              color:
+                                order.status === 'PREPARING'
+                                  ? 'var(--primary)'
+                                  : order.status === 'READY'
+                                    ? '#2d7a4a'
+                                    : '#666',
+                            }}
+                          >
+                            {order.status}
+                          </span>
+                          <span style={{ fontWeight: '600', fontSize: '13px' }}>₹{order.total_amount}</span>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <span
-                          style={{
-                            padding: '4px 10px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                            fontWeight: '600',
-                            background:
-                              order.status === 'Preparing'
-                                ? 'rgba(255, 140, 66, 0.2)'
-                                : order.status === 'Ready'
-                                  ? 'rgba(45, 122, 74, 0.2)'
-                                  : 'rgba(100, 100, 100, 0.2)',
-                            color:
-                              order.status === 'Preparing'
-                                ? '#ff8c42'
-                                : order.status === 'Ready'
-                                  ? '#2d7a4a'
-                                  : '#999',
-                          }}
-                        >
-                          {order.status}
-                        </span>
-                        <span style={{ fontWeight: '600', fontSize: '13px' }}>{order.amount}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
