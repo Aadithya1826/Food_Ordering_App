@@ -136,3 +136,35 @@ def logout(response: Response):
     """
     response.delete_cookie(key="access_token")
     return {"message": "Logged out successfully"}
+
+
+@router.get("/api/v1/managers")
+def get_managers(db: Session = Depends(get_db)):
+    """
+    Get all managers (HOTEL_ADMIN users) with their assigned restaurants
+    """
+    try:
+        managers = db.query(User).filter(User.role == "HOTEL_ADMIN").all()
+        
+        result = []
+        for manager in managers:
+            restaurant = None
+            if manager.restaurant_id:
+                restaurant = db.query(Restaurant).filter(Restaurant.id == manager.restaurant_id).first()
+            
+            result.append({
+                "id": manager.id,
+                "name": manager.name,
+                "email": manager.email,
+                "role": manager.role,
+                "is_active": manager.is_active,
+                "restaurant_id": manager.restaurant_id,
+                "restaurant_name": restaurant.name if restaurant else "Not Assigned",
+                "restaurant_phone": restaurant.phone if restaurant else None,
+                "created_at": manager.created_at.isoformat() if manager.created_at else None
+            })
+        
+        return result
+    except Exception as e:
+        print(f"Error fetching managers: {str(e)}")
+        raise HTTPException(status_code=500, detail="Unable to fetch managers. Please try again.")

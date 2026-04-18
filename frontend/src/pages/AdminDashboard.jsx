@@ -17,7 +17,7 @@ import {
   MapPin,
 } from 'lucide-react';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
-import { restaurantService, tableService } from '../services/api';
+import { restaurantService, tableService, managerService } from '../services/api';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
@@ -36,6 +36,11 @@ const AdminDashboard = () => {
   const [newHotel, setNewHotel] = useState({ name: '', address: '', phone: '' });
   const [createError, setCreateError] = useState(null);
   const [creatingHotel, setCreatingHotel] = useState(false);
+
+  const [managers, setManagers] = useState([]);
+  const [managersLoading, setManagersLoading] = useState(true);
+  const [managersError, setManagersError] = useState(null);
+  const [managerSearch, setManagerSearch] = useState('');
 
   const handleLogout = async () => {
     await logout();
@@ -77,8 +82,22 @@ const AdminDashboard = () => {
       }
     };
 
+    const fetchManagers = async () => {
+      try {
+        setManagersLoading(true);
+        const response = await managerService.getManagers();
+        setManagers(response);
+      } catch (error) {
+        console.error('Error fetching managers:', error);
+        setManagersError('Unable to load managers.');
+      } finally {
+        setManagersLoading(false);
+      }
+    };
+
     fetchTables();
     fetchHotels();
+    fetchManagers();
   }, []);
 
   // Sample data
@@ -113,6 +132,52 @@ const AdminDashboard = () => {
     },
   ];
 
+  const reportCards = [
+    {
+      label: 'Total Platform Revenue',
+      value: '₹48,52,300',
+      change: '+22%',
+      color: '#ff8c42',
+      icon: '₹',
+    },
+    {
+      label: 'Total Orders',
+      value: '18,456',
+      change: '+15%',
+      color: '#2d7a4a',
+      icon: '🧾',
+    },
+    {
+      label: 'Avg. Order Value',
+      value: '₹263',
+      change: '+5%',
+      color: '#ff8c42',
+      icon: '💳',
+    },
+    {
+      label: 'Customer Satisfaction',
+      value: '4.6/5',
+      change: '-0.1',
+      color: '#f82b60',
+      icon: '⭐',
+    },
+  ];
+
+  const paymentMethods = [
+    { name: 'UPI', value: 48, color: '#ff8c42' },
+    { name: 'Cash', value: 28, color: '#2d7a4a' },
+    { name: 'Card', value: 18, color: '#ff6b6b' },
+    { name: 'Wallet', value: 6, color: '#6b7280' },
+  ];
+
+  const performanceRows = [
+    { hotel: 'Grand Udipi Palace', revenue: '₹3,24,500', orders: 1245, growth: '+18%' },
+    { hotel: 'Sagar Delights', revenue: '₹2,89,300', orders: 1102, growth: '+14%' },
+    { hotel: 'Coastal Kitchen', revenue: '₹2,45,100', orders: 987, growth: '+21%' },
+    { hotel: 'Dosa Corner', revenue: '₹1,98,700', orders: 856, growth: '+9%' },
+    { hotel: 'Heritage Kitchen', revenue: '₹1,45,800', orders: 632, growth: '+28%' },
+  ];
+
   const topHotels = [
     { id: 1, name: 'Grand Udpi Palace', city: 'Mumbai', revenue: '₹3,24,500', orders: 1245, growth: '+18%' },
     { id: 2, name: 'Sagar Delights', city: 'Bangalore', revenue: '₹2,89,300', orders: 1102, growth: '+14%' },
@@ -134,6 +199,15 @@ const AdminDashboard = () => {
       hotel.name.toLowerCase().includes(query) ||
       (hotel.address || '').toLowerCase().includes(query) ||
       (hotel.phone || '').toLowerCase().includes(query)
+    );
+  });
+
+  const filteredManagers = managers.filter((manager) => {
+    const query = managerSearch.toLowerCase();
+    return (
+      manager.name.toLowerCase().includes(query) ||
+      manager.email.toLowerCase().includes(query) ||
+      (manager.restaurant_name || '').toLowerCase().includes(query)
     );
   });
 
@@ -706,18 +780,396 @@ const AdminDashboard = () => {
           )}
 
           {activePage === 'managers' && (
-            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <Users size={48} style={{ margin: '0 auto 20px', color: 'var(--text-secondary)', opacity: 0.5 }} />
-              <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>Managers Management</h3>
-              <p style={{ color: 'var(--text-secondary)' }}>Managers management interface - coming soon</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Header */}
+              <div>
+                <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', marginBottom: '8px' }}>Managers</h2>
+                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>
+                  Manage hotel managers and their assignments
+                </p>
+              </div>
+
+              {/* Add Manager Button */}
+              <button
+                onClick={() => {}}
+                className="btn btn-primary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '14px 16px',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  letterSpacing: '0.5px',
+                  textTransform: 'uppercase',
+                }}
+              >
+                <Users size={18} />
+                Add Manager
+              </button>
+
+              {/* Search Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+                <input
+                  type="text"
+                  value={managerSearch}
+                  onChange={(e) => setManagerSearch(e.target.value)}
+                  placeholder="Search managers or hotels..."
+                  style={{
+                    flex: 1,
+                    maxWidth: '400px',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--surface)',
+                    color: 'var(--text-primary)',
+                    fontSize: '14px',
+                  }}
+                />
+                <span style={{ color: 'var(--text-secondary)', fontSize: '13px', whiteSpace: 'nowrap' }}>
+                  {filteredManagers.length} managers on platform
+                </span>
+              </div>
+
+              {/* Managers Grid */}
+              {managersLoading ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  Loading managers...
+                </div>
+              ) : managersError ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: '#c0392b' }}>{managersError}</div>
+              ) : filteredManagers.length === 0 ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  No managers match your search.
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                    gap: '16px',
+                  }}
+                >
+                  {filteredManagers.map((manager) => {
+                    const initials = manager.name
+                      .split(' ')
+                      .map((n) => n[0])
+                      .join('')
+                      .toUpperCase()
+                      .slice(0, 2);
+                    
+                    const colors = ['#ff8c42', '#2d7a4a', '#0066cc', '#9933cc', '#ff6b6b', '#4ecdc4'];
+                    const colorIndex = manager.id % colors.length;
+                    const bgColor = colors[colorIndex];
+
+                    return (
+                      <div
+                        key={manager.id}
+                        style={{
+                          background: '#FFFFFF',
+                          borderRadius: '12px',
+                          padding: '20px',
+                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          transition: 'all 0.25s ease',
+                          cursor: 'pointer',
+                          position: 'relative',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.14)';
+                          e.currentTarget.style.transform = 'translateY(-4px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                      >
+                        {/* Manager Avatar and Status */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                          <div
+                            style={{
+                              width: '56px',
+                              height: '56px',
+                              borderRadius: '50%',
+                              background: bgColor,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'white',
+                              fontWeight: '700',
+                              fontSize: '20px',
+                            }}
+                          >
+                            {initials}
+                          </div>
+                          <span
+                            style={{
+                              background: manager.is_active ? '#d4edda' : '#f8d7da',
+                              color: manager.is_active ? '#155724' : '#856404',
+                              borderRadius: '20px',
+                              padding: '4px 10px',
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.3px',
+                            }}
+                          >
+                            {manager.is_active ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
+                        </div>
+
+                        {/* Manager Name */}
+                        <h4 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#1a1a1a', marginBottom: '4px' }}>
+                          {manager.name}
+                        </h4>
+
+                        {/* Hotel Name */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px' }}>
+                          <Building2 size={16} color="#ff8c42" />
+                          <p style={{ margin: 0, color: '#666', fontSize: '13px', fontWeight: '500' }}>
+                            {manager.restaurant_name}
+                          </p>
+                        </div>
+
+                        {/* Data Rows */}
+                        <div style={{ fontSize: '12px', lineHeight: '2', color: '#555', flex: 1, marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <span style={{ color: '#888' }}>📧</span>
+                            <span style={{ fontWeight: '500', wordBreak: 'break-all' }}>{manager.email}</span>
+                          </div>
+                          {manager.restaurant_phone && (
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <span style={{ color: '#888' }}>📱</span>
+                              <span style={{ fontWeight: '500' }}>{manager.restaurant_phone}</span>
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <span style={{ color: '#888' }}>👤</span>
+                            <span style={{ fontWeight: '500' }}>{manager.role}</span>
+                          </div>
+                          {manager.created_at && (
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <span style={{ color: '#888' }}>📅</span>
+                              <span style={{ fontWeight: '500', fontSize: '11px' }}>
+                                Joined {new Date(manager.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action Menu Dots */}
+                        <div style={{ position: 'absolute', top: '16px', right: '16px' }}>
+                          <button
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#999',
+                              cursor: 'pointer',
+                              fontSize: '20px',
+                              padding: '4px 8px',
+                            }}
+                          >
+                            ⋮
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
           {activePage === 'reports' && (
-            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <BarChart3 size={48} style={{ margin: '0 auto 20px', color: 'var(--text-secondary)', opacity: 0.5 }} />
-              <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>Reports & Analytics</h3>
-              <p style={{ color: 'var(--text-secondary)' }}>Advanced reports and analytics - coming soon</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '32px', fontWeight: '700', marginBottom: '8px' }}>Reports & Analytics</h2>
+                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>
+                  Platform-wide performance insights
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px' }}>
+                {reportCards.map((card, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      background: '#FFFFFF',
+                      borderRadius: '24px',
+                      padding: '24px',
+                      border: '1px solid rgba(15, 23, 42, 0.08)',
+                      boxShadow: '0 20px 40px rgba(15, 23, 42, 0.04)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      minHeight: '140px',
+                    }}
+                  >
+                    <div>
+                      <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                        {card.label}
+                      </p>
+                      <h3 style={{ margin: '14px 0 0', fontSize: '32px', fontWeight: '700', color: '#111111' }}>{card.value}</h3>
+                    </div>
+                    <div
+                      style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '18px',
+                        background: `${card.color}1f`,
+                        display: 'grid',
+                        placeItems: 'center',
+                        color: card.color,
+                        fontSize: '20px',
+                        fontWeight: '700',
+                      }}
+                    >
+                      {card.icon}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 1fr',
+                  gap: '20px',
+                  alignItems: 'stretch',
+                }}
+              >
+                <div
+                  style={{
+                    background: '#FFFFFF',
+                    borderRadius: '24px',
+                    padding: '24px',
+                    border: '1px solid rgba(15, 23, 42, 0.08)',
+                    boxShadow: '0 20px 40px rgba(15, 23, 42, 0.04)',
+                    minHeight: '360px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '18px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', fontWeight: '600' }}>Monthly Revenue Trend</p>
+                    </div>
+                    <button
+                      style={{
+                        border: '1px solid rgba(15, 23, 42, 0.12)',
+                        background: 'transparent',
+                        borderRadius: '999px',
+                        padding: '10px 16px',
+                        color: '#111111',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Last 6 months
+                    </button>
+                  </div>
+                  <div style={{ flex: 1, position: 'relative', minHeight: '220px', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        borderRadius: '20px',
+                        background: 'linear-gradient(180deg, rgba(255, 140, 66, 0.12), rgba(255, 255, 255, 0.00))',
+                      }}
+                    />
+                    <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '20px 0' }}>
+                      {['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'].map((month, idx) => {
+                        const heights = [32, 42, 56, 72, 68, 80];
+                        return (
+                          <div key={month} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', flex: 1 }}>
+                            <div style={{ width: '100%', height: `${heights[idx]}%`, minHeight: '32px', background: 'linear-gradient(180deg, #ff8c42, rgba(255, 140, 66, 0.35))', borderRadius: '20px 20px 0 0' }} />
+                            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{month}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    background: '#FFFFFF',
+                    borderRadius: '24px',
+                    padding: '24px',
+                    border: '1px solid rgba(15, 23, 42, 0.08)',
+                    boxShadow: '0 20px 40px rgba(15, 23, 42, 0.04)',
+                    minHeight: '360px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                    <p style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#111111' }}>Payment Methods</p>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Share</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                    {paymentMethods.map((method) => (
+                      <div key={method.name} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '14px', fontWeight: '600', color: '#111111' }}>{method.name}</span>
+                          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{method.value}%</span>
+                        </div>
+                        <div style={{ height: '10px', width: '100%', borderRadius: '999px', background: '#f4f4f6' }}>
+                          <div style={{ width: `${method.value}%`, height: '100%', borderRadius: '999px', background: method.color }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  borderRadius: '24px',
+                  padding: '24px',
+                  border: '1px solid rgba(15, 23, 42, 0.08)',
+                  boxShadow: '0 20px 40px rgba(15, 23, 42, 0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: '#111111' }}>Hotel Performance</h3>
+                    <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                      Performance summary across the top venues
+                    </p>
+                  </div>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Updated just now</span>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.08)' }}>
+                      <th style={{ textAlign: 'left', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Hotel</th>
+                      <th style={{ textAlign: 'right', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Revenue</th>
+                      <th style={{ textAlign: 'right', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Orders</th>
+                      <th style={{ textAlign: 'right', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Growth</th>
+                      <th style={{ textAlign: 'right', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Performance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {performanceRows.map((row, idx) => (
+                      <tr key={idx} style={{ borderBottom: idx !== performanceRows.length - 1 ? '1px solid rgba(15, 23, 42, 0.08)' : 'none' }}>
+                        <td style={{ padding: '18px 0', fontSize: '14px', color: '#111111', fontWeight: '600' }}>{row.hotel}</td>
+                        <td style={{ padding: '18px 0', textAlign: 'right', fontSize: '14px', fontWeight: '600' }}>{row.revenue}</td>
+                        <td style={{ padding: '18px 0', textAlign: 'right', fontSize: '14px', color: 'var(--text-secondary)' }}>{row.orders.toLocaleString()}</td>
+                        <td style={{ padding: '18px 0', textAlign: 'right', fontSize: '14px', color: '#2d7a4a', fontWeight: '700' }}>{row.growth}</td>
+                        <td style={{ padding: '18px 0', textAlign: 'right' }}>
+                          <div style={{ width: '120px', height: '10px', borderRadius: '999px', background: '#f4f4f6' }}>
+                            <div style={{ width: `${Math.min(Math.max(parseInt(row.growth.replace('+', '').replace('%', '')), 0), 100)}%`, height: '100%', borderRadius: '999px', background: '#ff8c42' }} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

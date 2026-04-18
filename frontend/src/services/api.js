@@ -120,4 +120,11 @@ export const inventoryService = {
   },
 };
 
+export const managerService = {
+  getManagers: async () => {
+    const response = await api.get('/api/v1/managers');
+    return response.data;
+  },
+};
+
 export default api;
