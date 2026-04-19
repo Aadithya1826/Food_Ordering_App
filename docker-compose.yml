@@ -3,6 +3,7 @@ version: '3.9'
 services:
   db:
     image: postgres:15
+    container_name: food_ordering_db
     environment:
       POSTGRES_USER: food_admin
       POSTGRES_PASSWORD: "foodadmin@123"
@@ -14,11 +15,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - app_network
 
-  web:
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: food_ordering_backend
     ports:
       - "8000:8000"
     environment:
@@ -28,7 +32,27 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/app:/app/app
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    networks:
+      - app_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: "http://localhost:8000"
+    container_name: food_ordering_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - app_network
 
 volumes:
   postgres_data:
+
+networks:
+  app_network:
+    driver: bridge
