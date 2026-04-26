@@ -1,7 +1,7 @@
 import os
+import bcrypt
 
 from jose import jwt
-from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 
@@ -9,16 +9,14 @@ SECRET_KEY = os.getenv("SECRET_KEY", "secret")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
 def hash_password(password: str):
     password = password.strip()
 
     if len(password) > 72:
         raise HTTPException(status_code=400, detail="Password too long")
 
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
 
 def verify_password(plain, hashed):
@@ -28,7 +26,7 @@ def verify_password(plain, hashed):
         if len(plain) > 72:
             return False
 
-        return pwd_context.verify(plain, hashed)
+        return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
     except Exception:
         return False
 
