@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from ..db import SessionLocal
 from ..models.menu import MenuItem, MenuCategory
@@ -53,10 +53,26 @@ def get_items(
 
     return query.all()
 
+def generate_and_update_image(item_id: int, item_name: str, item_description: str):
+    db = SessionLocal()
+    try:
+        from ..utils.image_generator import generate_menu_item_image
+        image_url = generate_menu_item_image(item_id, item_name, item_description)
+        if image_url:
+            item = db.query(MenuItem).filter(MenuItem.id == item_id).first()
+            if item:
+                item.image_url = image_url
+                db.commit()
+    except Exception as e:
+        print(f"Background task failed: {e}")
+    finally:
+        db.close()
+
 # POST item
 @router.post("/api/v1/menu/items", response_model=MenuItemResponse)
 def create_item(
     data: MenuItemCreate,
+    background_tasks: BackgroundTasks,
     user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -78,6 +94,10 @@ def create_item(
     db.add(item)
     db.commit()
     db.refresh(item)
+    
+    # Enqueue background task for image generation
+    background_tasks.add_task(generate_and_update_image, item.id, item.name, item.description)
+    
     return item
 
 # PATCH item - with role-based validation
@@ -119,3 +139,57 @@ def update_item(
     db.commit()
     db.refresh(item)
     return item
+
+# POST generate image for existing item
+@router.post("/api/v1/menu/items/{item_id}/generate-image", response_model=MenuItemResponse)
+def generate_image_for_item(
+    item_id: int,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    require_role(user, ["HOTEL_ADMIN", "SUPER_ADMIN"])
+
+    item = db.query(MenuItem).filter(MenuItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    if user.role == "HOTEL_ADMIN" and item.restaurant_id != user.restaurant_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied"
+        )
+        
+    from ..utils.image_generator import generate_menu_item_image
+    image_url = generate_menu_item_image(item.id, item.name, item.description)
+    
+    if image_url:
+        item.image_url = image_url
+        db.commit()
+        db.refresh(item)
+    else:
+        raise HTTPException(status_code=500, detail="Failed to generate image")
+        
+    return item
+
+# DELETE item
+@router.delete("/api/v1/menu/items/{item_id}", status_code=204)
+def delete_item(
+    item_id: int,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    require_role(user, ["HOTEL_ADMIN", "SUPER_ADMIN"])
+
+    item = db.query(MenuItem).filter(MenuItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    if user.role == "HOTEL_ADMIN" and item.restaurant_id != user.restaurant_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied"
+        )
+
+    db.delete(item)
+    db.commit()
+    return None

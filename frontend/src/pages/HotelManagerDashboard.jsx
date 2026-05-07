@@ -15,16 +15,25 @@ import {
   Clock,
   Users,
   AlertTriangle,
+  CreditCard,
 } from 'lucide-react';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
 import { orderService, inventoryService, menuService, tableService } from '../services/api';
+import MenuManagement from '../components/MenuManagement';
+import OrdersManagement from '../components/OrdersManagement';
+import TableManagement from '../components/TableManagement';
+import InventoryManagement from '../components/InventoryManagement';
+import PaymentManagement from '../components/PaymentManagement';
+import ReportsManagement from '../components/ReportsManagement';
+import SettingsManagement from '../components/SettingsManagement';
+import VoiceWidget from '../components/VoiceWidget';
 
 const HotelManagerDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activePage, setActivePage] = useState('dashboard');
-  
+
   // Data states
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
@@ -42,7 +51,7 @@ const HotelManagerDashboard = () => {
           menuService.getItems().catch(() => []),
           tableService.getTables().catch(() => []),
         ]);
-        
+
         setOrders(ordersData);
         setInventory(inventoryData);
         setMenuItems(menuData);
@@ -69,6 +78,7 @@ const HotelManagerDashboard = () => {
     { id: 'orders', label: 'Orders', icon: ShoppingCart },
     { id: 'tables', label: 'Tables & QR', icon: Table2 },
     { id: 'inventory', label: 'Inventory', icon: Package },
+    { id: 'payments', label: 'Payments', icon: CreditCard },
     { id: 'reports', label: 'Reports', icon: TrendingUp },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -119,7 +129,7 @@ const HotelManagerDashboard = () => {
               className="logo-title-image"
             />
           )}
-        <div className="logo-symbol">ADMIN</div>
+          <div className="logo-symbol-manager">MANAGER</div>
 
         </div>
 
@@ -221,39 +231,39 @@ const HotelManagerDashboard = () => {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     {bestSellersList.map((item, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '16px',
-                        padding: '12px',
-                        background: 'rgba(255, 255, 255, 0.02)',
-                        borderRadius: '8px',
-                      }}
-                    >
                       <div
+                        key={idx}
                         style={{
-                          width: '40px',
-                          height: '40px',
-                          background: 'var(--primary)',
-                          borderRadius: '50%',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'white',
-                          fontSize: '18px',
-                          flexShrink: 0,
+                          gap: '16px',
+                          padding: '12px',
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          borderRadius: '8px',
                         }}
                       >
-                        {item.icon}
+                        <div
+                          style={{
+                            width: '40px',
+                            height: '40px',
+                            background: 'var(--primary)',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'white',
+                            fontSize: '18px',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {item.icon}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontWeight: '600', fontSize: '14px', marginBottom: '4px' }}>{item.name}</p>
+                          <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{item.orders} orders</p>
+                        </div>
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontWeight: '600', fontSize: '14px', marginBottom: '4px' }}>{item.name}</p>
-                        <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{item.orders} orders</p>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                   </div>
                 )}
               </div>
@@ -370,54 +380,35 @@ const HotelManagerDashboard = () => {
           )}
 
           {activePage === 'menu' && (
-            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <UtensilsCrossed size={48} style={{ margin: '0 auto 20px', color: 'var(--text-secondary)', opacity: 0.5 }} />
-              <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>Menu Management</h3>
-              <p style={{ color: 'var(--text-secondary)' }}>Menu management interface - coming soon</p>
-            </div>
+            <MenuManagement />
           )}
 
           {activePage === 'orders' && (
-            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <ShoppingCart size={48} style={{ margin: '0 auto 20px', color: 'var(--text-secondary)', opacity: 0.5 }} />
-              <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>Orders Management</h3>
-              <p style={{ color: 'var(--text-secondary)' }}>Orders management interface - coming soon</p>
-            </div>
+            <OrdersManagement />
           )}
 
           {activePage === 'tables' && (
-            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <Table2 size={48} style={{ margin: '0 auto 20px', color: 'var(--text-secondary)', opacity: 0.5 }} />
-              <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>Tables & QR Codes</h3>
-              <p style={{ color: 'var(--text-secondary)' }}>Tables management interface - coming soon</p>
-            </div>
+            <TableManagement />
           )}
 
           {activePage === 'inventory' && (
-            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <Package size={48} style={{ margin: '0 auto 20px', color: 'var(--text-secondary)', opacity: 0.5 }} />
-              <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>Inventory Management</h3>
-              <p style={{ color: 'var(--text-secondary)' }}>Inventory management interface - coming soon</p>
-            </div>
+            <InventoryManagement />
+          )}
+
+          {activePage === 'payments' && (
+            <PaymentManagement />
           )}
 
           {activePage === 'reports' && (
-            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <TrendingUp size={48} style={{ margin: '0 auto 20px', color: 'var(--text-secondary)', opacity: 0.5 }} />
-              <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>Reports & Analytics</h3>
-              <p style={{ color: 'var(--text-secondary)' }}>Reports and analytics interface - coming soon</p>
-            </div>
+            <ReportsManagement />
           )}
 
           {activePage === 'settings' && (
-            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <Settings size={48} style={{ margin: '0 auto 20px', color: 'var(--text-secondary)', opacity: 0.5 }} />
-              <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>Settings</h3>
-              <p style={{ color: 'var(--text-secondary)' }}>Settings configuration - coming soon</p>
-            </div>
+            <SettingsManagement />
           )}
         </div>
       </div>
+      <VoiceWidget onNavigate={setActivePage} />
     </div>
   );
 };

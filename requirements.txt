@@ -6,3 +6,5 @@ python-jose
 bcrypt
 httpx>=0.24.0
 python-dotenv>=1.0.0
+google-genai
+pillow

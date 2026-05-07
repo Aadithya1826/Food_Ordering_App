@@ -107,11 +107,12 @@ const Onboarding = () => {
     setLoading(true);
     try {
       await login(formData.email, formData.password, roleParam);
-      // Navigate based on role
-      const roleData = roles.find((r) => r.id === selectedRole);
-      navigate(selectedRole === 'super_admin' ? '/admin-dashboard' : '/manager-dashboard', {
-        state: { role: roleData },
-      });
+      // Navigate to respective dashboard directly
+      if (selectedRole === 'super_admin') {
+        navigate('/admin-dashboard');
+      } else {
+        navigate('/manager-dashboard');
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed. Please try again.');
     } finally {

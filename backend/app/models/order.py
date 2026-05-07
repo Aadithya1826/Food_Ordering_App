@@ -19,6 +19,8 @@ class Order(Base):
     restaurant_id = Column(Integer, nullable=True)
     table_id = Column(Integer, ForeignKey("tables.id"))
     status = Column(String, nullable=True)
+    payment_method = Column(String, nullable=True)
+    payment_status = Column(String, nullable=True)
     total_amount = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -74,3 +74,50 @@ def update_status(
         "order_id": order.id,
         "status": order.status
     }
+
+
+# GET all orders (for payments and history)
+@router.get("/api/v1/orders", response_model=list[dict])
+def get_all_orders(
+    restaurant_id: int | None = None,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    require_role(user, ["HOTEL_ADMIN", "SUPER_ADMIN"])
+
+    restaurant_id = resolve_restaurant_id(user, restaurant_id)
+    query = db.query(Order)
+    if restaurant_id is not None:
+        query = query.filter(Order.restaurant_id == restaurant_id)
+
+    # For payment dashboard, ordering by latest first
+    orders = query.order_by(Order.created_at.desc()).all()
+    
+    response = []
+    for o in orders:
+        items = [
+            {
+                "name": i.menu_item.name,
+                "quantity": i.quantity,
+                "price": i.price
+            }
+            for i in o.items
+        ]
+
+        # Use defaults if not set
+        method = o.payment_method or "Cash"
+        # If SERVED, it's typically paid. If PENDING, maybe pending.
+        p_status = o.payment_status or ("Paid" if o.status in ["SERVED", "COMPLETED"] else "Pending")
+
+        response.append({
+            "order_id": o.id,
+            "table_number": o.table.table_number if o.table else "N/A",
+            "status": o.status,
+            "payment_method": method,
+            "payment_status": p_status,
+            "total_amount": o.total_amount,
+            "created_at": o.created_at,
+            "items": items
+        })
+
+    return response

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..db import SessionLocal
 from ..models.restaurant import Restaurant
-from ..schemas.restaurant import RestaurantResponse, RestaurantCreateRequest
+from ..schemas.restaurant import RestaurantResponse, RestaurantCreateRequest, RestaurantUpdateRequest
 from ..utils.dependencies import get_current_user
 from ..utils.roles import require_role, require_restaurant_access
 
@@ -85,4 +85,20 @@ def get_restaurant(restaurant_id: int, user = Depends(get_current_user), db: Ses
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
     require_restaurant_access(user, restaurant_id)
+    return restaurant
+
+@router.patch("/api/v1/restaurants/{restaurant_id}", response_model=RestaurantResponse)
+def update_restaurant(restaurant_id: int, data: RestaurantUpdateRequest, user = Depends(get_current_user), db: Session = Depends(get_db)):
+    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+    if not restaurant:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    require_restaurant_access(user, restaurant_id)
+
+    update_data = data.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(restaurant, key, value)
+
+    db.commit()
+    db.refresh(restaurant)
     return restaurant

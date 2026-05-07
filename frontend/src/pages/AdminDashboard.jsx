@@ -16,6 +16,7 @@ import {
   DollarSign,
   MapPin,
 } from 'lucide-react';
+import VoiceWidget from '../components/VoiceWidget';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
 import { restaurantService, tableService, managerService } from '../services/api';
 
@@ -1182,6 +1183,7 @@ const AdminDashboard = () => {
           )}
         </div>
       </div>
+      <VoiceWidget onNavigate={setActivePage} />
     </div>
   );
 };

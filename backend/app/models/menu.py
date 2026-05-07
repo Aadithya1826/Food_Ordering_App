@@ -23,6 +23,8 @@ class MenuItem(Base):
     name = Column(String, index=True)
     description = Column(Text, nullable=True)
     price = Column(Float)
+    quantity = Column(Integer, default=0)
     is_available = Column(Boolean, default=True)
+    image_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     category = relationship("MenuCategory", back_populates="items")

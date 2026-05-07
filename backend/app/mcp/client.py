@@ -5,7 +5,10 @@ import re
 import httpx
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-pro")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+# Fallback if .env still has the deprecated model
+if GEMINI_MODEL == "gemini-1.5-pro" or GEMINI_MODEL == "gemini-2.5-pro":
+    GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta2")
 
 if not GEMINI_API_KEY:
@@ -19,11 +22,16 @@ class GeminiClient:
         self.api_key = GEMINI_API_KEY
 
     async def generate_text(self, prompt: str, max_tokens: int = 600, temperature: float = 0.2) -> str:
-        url = f"{self.base_url}/models/{self.model}:generateText?key={self.api_key}"
+        # The correct endpoint for gemini-1.5-pro is generateContent, not generateText
+        # We'll adapt the base URL to use v1beta and the correct model format
+        base_url = self.base_url.replace("v1beta2", "v1beta")
+        url = f"{base_url}/models/{self.model}:generateContent?key={self.api_key}"
         payload = {
-            "prompt": {"text": prompt},
-            "temperature": temperature,
-            "maxOutputTokens": max_tokens,
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens,
+            }
         }
 
         async with httpx.AsyncClient(timeout=30) as client:
@@ -60,18 +68,19 @@ class GeminiClient:
         if not candidates:
             return json.dumps(response_json)
 
-        content = candidates[0].get("content") or []
+        content = candidates[0].get("content") or {}
+        parts = content.get("parts") or []
+        
         text_parts = []
-        for chunk in content:
-            if chunk.get("type") == "output_text":
-                text_parts.append(chunk.get("text", ""))
-            elif chunk.get("type") == "message":
-                text_parts.append(chunk.get("text", ""))
+        for chunk in parts:
+            if "text" in chunk:
+                text_parts.append(chunk["text"])
 
         if text_parts:
             return "".join(text_parts).strip()
 
-        return candidates[0].get("output", "").strip()
+        # fallback
+        return str(candidates[0])
 
     def _try_parse_json(self, raw_text: str) -> dict | None:
         trimmed = raw_text.strip()

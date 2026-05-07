@@ -75,11 +75,26 @@ export const restaurantService = {
     const response = await api.post('/api/v1/restaurants', restaurantData);
     return response.data;
   },
+
+  getRestaurant: async (restaurantId) => {
+    const response = await api.get(`/api/v1/restaurants/${restaurantId}`);
+    return response.data;
+  },
+
+  updateRestaurant: async (restaurantId, updateData) => {
+    const response = await api.patch(`/api/v1/restaurants/${restaurantId}`, updateData);
+    return response.data;
+  },
 };
 
 export const tableService = {
   getTables: async (params = {}) => {
     const response = await api.get('/api/v1/tables', { params });
+    return response.data;
+  },
+  
+  updateTable: async (tableId, tableData) => {
+    const response = await api.patch(`/api/v1/tables/${tableId}`, tableData);
     return response.data;
   },
 };
@@ -94,11 +109,36 @@ export const menuService = {
     const response = await api.get('/api/v1/menu/categories', { params });
     return response.data;
   },
+
+  createItem: async (itemData) => {
+    const response = await api.post('/api/v1/menu/items', itemData);
+    return response.data;
+  },
+
+  updateItem: async (itemId, itemData) => {
+    const response = await api.patch(`/api/v1/menu/items/${itemId}`, itemData);
+    return response.data;
+  },
+
+  generateImage: async (itemId) => {
+    const response = await api.post(`/api/v1/menu/items/${itemId}/generate-image`);
+    return response.data;
+  },
+
+  deleteItem: async (itemId) => {
+    const response = await api.delete(`/api/v1/menu/items/${itemId}`);
+    return response.data;
+  },
 };
 
 export const orderService = {
   getLiveOrders: async (params = {}) => {
     const response = await api.get('/api/v1/orders/live', { params });
+    return response.data;
+  },
+
+  getAllOrders: async (params = {}) => {
+    const response = await api.get('/api/v1/orders', { params });
     return response.data;
   },
 
@@ -118,6 +158,11 @@ export const inventoryService = {
     const response = await api.patch(`/api/v1/inventory/${inventoryId}`, { quantity });
     return response.data;
   },
+
+  createItem: async (itemData) => {
+    const response = await api.post('/api/v1/inventory', itemData);
+    return response.data;
+  },
 };
 
 export const managerService = {
@@ -127,4 +172,12 @@ export const managerService = {
   },
 };
 
+export const reportsService = {
+  getReports: async (params = {}) => {
+    const response = await api.get('/api/v1/reports', { params });
+    return response.data;
+  },
+};
+
 export default api;
+

@@ -51,9 +51,18 @@ async def natural_language_query(
 
     try:
         parsed = await client.generate_json(full_prompt)
-    except Exception:
-        raw_text = await client.generate_text(full_prompt)
-        return MCPResponse(assistant_text=raw_text, tool_name=None, tool_result=None)
+    except Exception as e:
+        print(f"Error parsing JSON from Gemini: {e}")
+        try:
+            raw_text = await client.generate_text(full_prompt)
+            return MCPResponse(assistant_text=raw_text, tool_name=None, tool_result=None)
+        except Exception as e2:
+            print(f"Error falling back to text generation: {e2}")
+            return MCPResponse(
+                assistant_text="I'm sorry, my backend connection to the AI model failed.",
+                tool_name=None,
+                tool_result=None
+            )
 
     tool_name = parsed.get("tool_name")
     assistant_text = parsed.get("assistant_text", "")

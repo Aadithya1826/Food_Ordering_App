@@ -68,3 +68,33 @@ def update_inventory(
     db.refresh(item)
 
     return item
+
+
+@router.post("/api/v1/inventory")
+def create_inventory(
+    data: dict,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new inventory item
+    """
+    require_role(user, ["HOTEL_ADMIN", "SUPER_ADMIN"])
+
+    restaurant_id = resolve_restaurant_id(user, data.get("restaurant_id"))
+
+    if not data.get("name") or data.get("quantity") is None or not data.get("unit"):
+        raise HTTPException(status_code=400, detail="Name, quantity, and unit are required")
+
+    new_item = InventoryItem(
+        restaurant_id=restaurant_id,
+        name=data["name"],
+        quantity=data["quantity"],
+        unit=data["unit"]
+    )
+
+    db.add(new_item)
+    db.commit()
+    db.refresh(new_item)
+
+    return new_item
