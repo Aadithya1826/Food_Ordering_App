@@ -16,6 +16,21 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Inject admin_selected_restaurant for super admin cross-hotel actions
+  const adminSelectedRestaurant = localStorage.getItem('admin_selected_restaurant');
+  if (adminSelectedRestaurant) {
+    if (config.method === 'get' || config.method === 'delete') {
+      config.params = { ...config.params, restaurant_id: adminSelectedRestaurant };
+    } else if (config.method === 'post' || config.method === 'patch' || config.method === 'put') {
+      if (config.data && typeof config.data === 'object' && !(config.data instanceof FormData)) {
+        config.data.restaurant_id = parseInt(adminSelectedRestaurant);
+      } else if (config.data instanceof FormData) {
+        config.data.append('restaurant_id', adminSelectedRestaurant);
+      }
+    }
+  }
+
   return config;
 });
 
@@ -154,13 +169,32 @@ export const inventoryService = {
     return response.data;
   },
 
-  updateInventory: async (inventoryId, quantity) => {
-    const response = await api.patch(`/api/v1/inventory/${inventoryId}`, { quantity });
+  updateInventory: async (inventoryId, data) => {
+    const response = await api.patch(`/api/v1/inventory/${inventoryId}`, data);
     return response.data;
   },
 
   createItem: async (itemData) => {
     const response = await api.post('/api/v1/inventory', itemData);
+    return response.data;
+  },
+
+  scanInventory: async (formData) => {
+    const response = await api.post('/api/v1/inventory/scan', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  bulkUpdateInventory: async (items) => {
+    const response = await api.post('/api/v1/inventory/bulk', items);
+    return response.data;
+  },
+
+  deleteItem: async (inventoryId) => {
+    const response = await api.delete(`/api/v1/inventory/${inventoryId}`);
     return response.data;
   },
 };
