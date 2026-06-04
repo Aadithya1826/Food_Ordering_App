@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..db import SessionLocal
 from ..models.order import Order, OrderItem
-from ..schemas.order import OrderStatusUpdate
+from ..schemas.order import OrderStatusUpdate, OrderPaymentStatusUpdate
 from ..utils.dependencies import get_current_user
 from ..utils.roles import require_role, resolve_restaurant_id, require_restaurant_access
 
@@ -41,10 +41,17 @@ def get_live_orders(
             for i in o.items
         ]
 
+        # Use defaults if not set
+        method = o.payment_method or "Cash"
+        # If SERVED, it's typically paid. If PENDING, maybe pending.
+        p_status = o.payment_status or ("Paid" if o.status in ["SERVED", "COMPLETED"] else "Pending")
+
         response.append({
             "order_id": o.id,
-            "table_number": o.table.table_number if o.table else "N/A",
+            "table_number": "Takeaway" if str(o.table_id).lower() == "takeaway" else (o.table.table_number if o.table else "N/A"),
             "status": o.status,
+            "payment_method": method,
+            "payment_status": p_status,
             "total_amount": o.total_amount,
             "created_at": o.created_at,
             "items": items
@@ -73,6 +80,29 @@ def update_status(
     return {
         "order_id": order.id,
         "status": order.status
+    }
+
+# PATCH order payment status
+@router.patch("/api/v1/orders/{order_id}/payment-status", response_model=dict)
+def update_payment_status(
+    order_id: int,
+    data: OrderPaymentStatusUpdate,
+    user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    require_role(user, ["HOTEL_ADMIN", "SUPER_ADMIN"])
+
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    require_restaurant_access(user, order.restaurant_id)
+    order.payment_status = data.payment_status
+    db.commit()
+
+    return {
+        "order_id": order.id,
+        "payment_status": order.payment_status
     }
 
 
@@ -111,7 +141,7 @@ def get_all_orders(
 
         response.append({
             "order_id": o.id,
-            "table_number": o.table.table_number if o.table else "N/A",
+            "table_number": "Takeaway" if str(o.table_id).lower() == "takeaway" else (o.table.table_number if o.table else "N/A"),
             "status": o.status,
             "payment_method": method,
             "payment_status": p_status,

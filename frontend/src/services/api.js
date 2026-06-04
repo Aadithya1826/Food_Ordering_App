@@ -176,6 +176,11 @@ export const orderService = {
     const response = await api.patch(`/api/v1/orders/${orderId}/status`, { status });
     return response.data;
   },
+
+  updateOrderPaymentStatus: async (orderId, payment_status) => {
+    const response = await api.patch(`/api/v1/orders/${orderId}/payment-status`, { payment_status });
+    return response.data;
+  },
 };
 
 export const inventoryService = {
@@ -217,6 +222,11 @@ export const inventoryService = {
 export const managerService = {
   getManagers: async () => {
     const response = await api.get('/api/v1/managers');
+    return response.data;
+  },
+
+  createManager: async (managerData) => {
+    const response = await api.post('/api/v1/managers', managerData);
     return response.data;
   },
 
