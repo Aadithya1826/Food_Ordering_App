@@ -26,7 +26,8 @@ def get_live_orders(
 
     restaurant_id = resolve_restaurant_id(user, restaurant_id)
     query = db.query(Order).options(
-        joinedload(Order.items).joinedload(OrderItem.menu_item)
+        joinedload(Order.items).joinedload(OrderItem.menu_item),
+        joinedload(Order.table)
     ).filter(Order.status != "SERVED")
     if restaurant_id is not None:
         query = query.filter(Order.restaurant_id == restaurant_id)
@@ -119,7 +120,8 @@ def get_all_orders(
 
     restaurant_id = resolve_restaurant_id(user, restaurant_id)
     query = db.query(Order).options(
-        joinedload(Order.items).joinedload(OrderItem.menu_item)
+        joinedload(Order.items).joinedload(OrderItem.menu_item),
+        joinedload(Order.table)
     )
     if restaurant_id is not None:
         query = query.filter(Order.restaurant_id == restaurant_id)
