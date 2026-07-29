@@ -1,67 +1,47 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
-import ErrorBoundary from './components/ErrorBoundary';
-import Toast from './components/Toast';
-import './styles/global.css';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import Home from './pages/Home'
+import Agent from './pages/Agent'
+import DineIn from './pages/DineIn'
+import TakeAway from './pages/TakeAway'
+import Invoice from './pages/Invoice'
 
-// Lazy load components for code splitting and faster initial load
-const Onboarding = React.lazy(() => import('./pages/Onboarding'));
-const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'));
-const HotelManagerDashboard = React.lazy(() => import('./pages/HotelManagerDashboard'));
-const CashierDashboard = React.lazy(() => import('./pages/CashierDashboard'));
-import './styles/global.css';
+import Payment from './pages/Payment'
+import OrderSuccess from './pages/OrderSuccess'
+import PaymentFailed from './pages/PaymentFailed'
+
+import TakeAwayPayment from './pages/TakeAwayPayment'
+import TakeAwayOrderSuccess from './pages/TakeAwayOrderSuccess'
+import Checkout from './pages/Checkout'
+import { CartProvider } from './context/CartContext'
+import AIAssistantOverlay from './components/AIAssistantOverlay'
+import ActiveOrderGuard from './components/ActiveOrderGuard'
+import ActiveOrderBanner from './components/ActiveOrderBanner'
 
 function App() {
   return (
-    <ErrorBoundary>
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <AuthProvider>
-          <div className="app">
-            <Toast />
-            <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen text-gray-500">Loading application...</div>}>
-              <Routes>
-                {/* Auth Flow */}
-                <Route path="/" element={<Onboarding />} />
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <CartProvider>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/agent" element={<Agent />} />
+        <Route path="/dine-in" element={<DineIn />} />
+        <Route path="/take-away" element={<TakeAway />} />
+        <Route path="/invoice" element={<Invoice />} />
 
-                {/* Protected Dashboards */}
-                <Route
-                  path="/admin-dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <AdminDashboard />
-                    </ProtectedRoute>
-                  }
-                />
+        <Route path="/checkout" element={<ActiveOrderGuard><Checkout isTakeaway={false} /></ActiveOrderGuard>} />
+        <Route path="/payment" element={<ActiveOrderGuard><Payment /></ActiveOrderGuard>} />
+        <Route path="/order-success" element={<OrderSuccess />} />
+        <Route path="/payment-failed" element={<PaymentFailed />} />
 
-                <Route
-                  path="/manager-dashboard/:hotelId?"
-                  element={
-                    <ProtectedRoute>
-                      <HotelManagerDashboard />
-                    </ProtectedRoute>
-                  }
-                />
-
-                <Route
-                  path="/cashier-dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <CashierDashboard />
-                    </ProtectedRoute>
-                  }
-                />
-
-                {/* Catch-all redirect */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </React.Suspense>
-          </div>
-        </AuthProvider>
-      </BrowserRouter>
-    </ErrorBoundary>
-  );
+        <Route path="/takeaway-checkout" element={<ActiveOrderGuard><Checkout isTakeaway={true} /></ActiveOrderGuard>} />
+        <Route path="/takeaway-payment" element={<ActiveOrderGuard><TakeAwayPayment /></ActiveOrderGuard>} />
+        <Route path="/takeaway-order-success" element={<TakeAwayOrderSuccess />} />
+      </Routes>
+      <ActiveOrderBanner />
+      <AIAssistantOverlay />
+      </CartProvider>
+    </Router>
+  )
 }
 
-export default App;
+export default App

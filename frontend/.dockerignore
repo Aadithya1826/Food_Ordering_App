@@ -1,10 +1,9 @@
 node_modules
-npm-debug.log
 dist
-.git
-.gitignore
+build
 .env
-.env.local
-README.md
-.DS_Store
-.vscode
+.env.*
+!.env.example
+npm-debug.log
+Dockerfile
+.dockerignore

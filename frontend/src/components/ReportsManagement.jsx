@@ -172,7 +172,7 @@ const ReportsManagement = () => {
             <h2 style={{ fontSize: '16px', fontWeight: '600' }}>Revenue Trend</h2>
           </div>
           <div style={{ height: '300px', width: '100%' }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
               <AreaChart data={chart_data} margin={{ top: 20, right: 20, bottom: 5, left: 0 }}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
