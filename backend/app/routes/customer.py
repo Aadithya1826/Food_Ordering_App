@@ -134,6 +134,13 @@ def place_order(payload: CustomerOrderPayload, restaurant_id: int = 1, db: Sessi
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/api/razorpay-key")
+def get_razorpay_key():
+    key_id = os.getenv("RAZORPAY_KEY_ID")
+    if not key_id:
+        raise HTTPException(status_code=500, detail="Razorpay key not configured")
+    return {"key_id": key_id}
+
 @router.post("/api/create-razorpay-order")
 def create_razorpay_order(payload: RazorpayOrderPayload):
     try:
@@ -186,8 +193,18 @@ def verify_payment(payload: RazorpayVerifyPayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/orders/{order_id}")
-def get_order_by_id(order_id: int, restaurant_id: int = 1, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id, Order.restaurant_id == restaurant_id).first()
+def get_order_by_id(order_id: str, restaurant_id: int = 1, db: Session = Depends(get_db)):
+    try:
+        if order_id.startswith("ORD-"):
+            parsed_id = int(order_id.replace("ORD-", ""))
+        elif order_id.startswith("UDP-"):
+            parsed_id = int(order_id.replace("UDP-", ""))
+        else:
+            parsed_id = int(order_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid order ID format")
+        
+    order = db.query(Order).filter(Order.id == parsed_id, Order.restaurant_id == restaurant_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 

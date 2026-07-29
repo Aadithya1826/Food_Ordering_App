@@ -18,9 +18,11 @@ app.add_middleware(
         "http://localhost:3000",     # React development server
         "http://localhost:5173",     # Vite development server
         "http://localhost:8081",     # Expo development server
+        "http://localhost:8082",     # Expo development server (secondary)
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:8081",
+        "http://127.0.0.1:8082",
         "http://frontend:3000",      # Docker container
         "http://dev-adm-ui.dataudipi.com",
         "https://dev-adm-ui.dataudipi.com",
