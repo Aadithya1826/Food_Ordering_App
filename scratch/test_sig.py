@@ -1,0 +1,4 @@
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+import inspect
+
+print(inspect.signature(DocumentIntelligenceClient.begin_analyze_document))

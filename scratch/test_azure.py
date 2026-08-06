@@ -1,21 +1,19 @@
+import sys
 import os
-from azure.ai.documentintelligence import DocumentIntelligenceClient
-from azure.core.credentials import AzureKeyCredential
-from dotenv import load_dotenv
+import traceback
 
-load_dotenv()
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
 
-endpoint = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
-key = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_KEY")
-
-print(f"Endpoint: {endpoint}")
-print(f"Key (masked): {key[:5]}...{key[-5:] if key else ''}")
+from app.utils.azure_scanner import AzureScanner
 
 try:
-    client = DocumentIntelligenceClient(endpoint, AzureKeyCredential(key))
-    # Try a simple operation
-    # Since we don't have a file, we can't really test analysis without one.
-    # But we can check if it initializes.
-    print("Client initialized successfully.")
+    scanner = AzureScanner()
+    if not scanner.client:
+        print("CLIENT IS NONE")
+    else:
+        print("CLIENT INITIALIZED")
+        # Try to scan a dummy file
+        scanner.scan_inventory_sheet(b"dummy image data")
 except Exception as e:
-    print(f"Error: {e}")
+    print("EXCEPTION CAUGHT:")
+    traceback.print_exc()
