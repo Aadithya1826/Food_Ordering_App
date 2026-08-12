@@ -7,6 +7,6 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
-items = session.execute(text("SELECT id, image_url FROM menu_items WHERE image_url IS NOT NULL LIMIT 10")).fetchall()
-for i in items:
-    print(i)
+print("--- Checking Categories 1-8 ---")
+cats = session.execute(text("SELECT id, name FROM menu_categories WHERE id IN (1, 2, 3, 4, 5, 6, 7, 8)")).fetchall()
+print(cats)
