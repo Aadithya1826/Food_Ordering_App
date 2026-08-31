@@ -93,6 +93,37 @@ const VoiceWidget = ({ onNavigate }) => {
     };
   }, []);
 
+  const audioQueueRef = useRef([]);
+  const isPlayingAudioRef = useRef(false);
+
+  const processAudioQueue = async (wasVoiceInput) => {
+    if (audioQueueRef.current.length === 0) {
+      isPlayingAudioRef.current = false;
+      if (wasVoiceInput && isExpanded && isVoiceModeRef.current) startListening();
+      return;
+    }
+    isPlayingAudioRef.current = true;
+    const base64Data = audioQueueRef.current.shift();
+    
+    try {
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+      }
+      const audio = new Audio(`data:audio/mp3;base64,${base64Data}`);
+      audio.playbackRate = 1.15;
+      currentAudioRef.current = audio;
+      
+      audio.onended = () => {
+        processAudioQueue(wasVoiceInput);
+      };
+      
+      await audio.play();
+    } catch (e) {
+      console.error("Audio playback error:", e);
+      processAudioQueue(wasVoiceInput);
+    }
+  };
+
   const handleUserVoiceInput = async (text, base64Audio = null) => {
     const trimmedText = text.trim();
     if (!trimmedText && !base64Audio) return;
@@ -200,20 +231,12 @@ const VoiceWidget = ({ onNavigate }) => {
                 }
               } else if (data.type === "audio") {
                 if (!isSpeakerMuted && data.payload && data.payload !== "null") {
-                  try {
-                    if (currentAudioRef.current) currentAudioRef.current.pause();
-                    const audio = new Audio(`data:audio/mp3;base64,${data.payload}`);
-                    audio.playbackRate = 1.15;
-                    currentAudioRef.current = audio;
-                    if (base64Audio) {
-                      audio.onended = () => { if (isExpanded && isVoiceModeRef.current) startListening(); };
-                    }
-                    await audio.play();
-                  } catch (e) {
-                    console.error("Audio playback error:", e);
-                    if (base64Audio && isExpanded && isVoiceModeRef.current) startListening();
+                  audioQueueRef.current.push(data.payload);
+                  if (!isPlayingAudioRef.current) {
+                    processAudioQueue(!!base64Audio);
                   }
-                } else if (base64Audio && isExpanded && isVoiceModeRef.current) {
+                } else if (!isPlayingAudioRef.current && base64Audio && isExpanded && isVoiceModeRef.current) {
+                  // Only start listening if nothing is playing or queued
                   startListening();
                 }
               } else if (data.type === "error") {

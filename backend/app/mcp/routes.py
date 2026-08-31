@@ -263,15 +263,54 @@ async def voice_assistant_query(
             "Respond with valid JSON only."
         )
 
-        raw_json = ""
-        try:
-            async for chunk in client.generate_json_stream(full_prompt, audio_base64=request.audio_base64):
-                raw_json += chunk
+        async def process_stream_and_tts(stream_gen, result_container):
+            raw_text = ""
+            current_live_text = ""
+            last_processed_idx = 0
+            import re
+            
+            async for chunk in stream_gen:
+                raw_text += chunk
                 yield f"data: {json.dumps({'type': 'llm_chunk', 'chunk': chunk})}\n\n"
+                
+                current_live_text += chunk
+                match = re.search(r'"assistant_text"\s*:\s*"((?:[^"\\]|\\.)*)', current_live_text)
+                if match:
+                    text_so_far = match.group(1).replace('\\"', '"').replace('\\n', '\n')
+                    unprocessed = text_so_far[last_processed_idx:]
+                    boundary_match = re.search(r'([.?!]+(?:\s|\n|$)+)', unprocessed)
+                    if boundary_match:
+                        boundary_idx = boundary_match.end()
+                        sentence = unprocessed[:boundary_idx].strip()
+                        last_processed_idx += boundary_idx
+                        if sentence:
+                            audio_chunk = await _generate_tts_audio(sentence)
+                            if audio_chunk:
+                                yield f"data: {json.dumps({'type': 'audio', 'payload': audio_chunk})}\n\n"
+            
+            # Flush remaining unprocessed text at the end of the stream
+            match = re.search(r'"assistant_text"\s*:\s*"((?:[^"\\]|\\.)*)', current_live_text)
+            if match:
+                text_so_far = match.group(1).replace('\\"', '"').replace('\\n', '\n')
+                unprocessed = text_so_far[last_processed_idx:].strip()
+                if unprocessed:
+                    audio_chunk = await _generate_tts_audio(unprocessed)
+                    if audio_chunk:
+                        yield f"data: {json.dumps({'type': 'audio', 'payload': audio_chunk})}\n\n"
+                        
+            result_container.append(raw_text)
+
+        raw_json_container = []
+        try:
+            stream = client.generate_json_stream(full_prompt, audio_base64=request.audio_base64)
+            async for item in process_stream_and_tts(stream, raw_json_container):
+                yield item
         except Exception as e:
             print(f"Error streaming JSON from Gemini: {e}")
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
             return
+            
+        raw_json = raw_json_container[0] if raw_json_container else ""
 
         parsed = client._try_parse_json(raw_json)
         if not parsed:
@@ -309,12 +348,14 @@ async def voice_assistant_query(
                         "Respond with valid JSON containing ONLY the key: 'assistant_text'."
                     )
                     
-                    second_raw = ""
+                    second_raw_container = []
                     yield f"data: {json.dumps({'type': 'second_pass_start'})}\n\n"
                     try:
-                        async for chunk in client.generate_json_stream(followup_prompt):
-                            second_raw += chunk
-                            yield f"data: {json.dumps({'type': 'llm_chunk', 'chunk': chunk})}\n\n"
+                        stream2 = client.generate_json_stream(followup_prompt)
+                        async for item in process_stream_and_tts(stream2, second_raw_container):
+                            yield item
+                        
+                        second_raw = second_raw_container[0] if second_raw_container else ""
                         second_parsed = client._try_parse_json(second_raw)
                         if second_parsed and "assistant_text" in second_parsed:
                             assistant_text = second_parsed["assistant_text"]
@@ -322,10 +363,6 @@ async def voice_assistant_query(
                         print(f"Error in second pass: {e}")
             except Exception as e:
                 yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-
-        if assistant_text:
-            audio_base64 = await _generate_tts_audio(assistant_text)
-            yield f"data: {json.dumps({'type': 'audio', 'payload': audio_base64})}\n\n"
 
         yield "data: [DONE]\n\n"
 
