@@ -199,7 +199,7 @@ const VoiceWidget = ({ onNavigate }) => {
                   setMessages((prev) => prev.map(m => m.id === userMsgId ? { ...m, text: data.text } : m));
                 }
               } else if (data.type === "audio") {
-                if (!isSpeakerMuted) {
+                if (!isSpeakerMuted && data.payload && data.payload !== "null") {
                   try {
                     if (currentAudioRef.current) currentAudioRef.current.pause();
                     const audio = new Audio(`data:audio/mp3;base64,${data.payload}`);

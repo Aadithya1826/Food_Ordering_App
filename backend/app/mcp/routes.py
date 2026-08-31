@@ -1,8 +1,10 @@
 import re
 import base64
 import io
-from gtts import gTTS
+import edge_tts
+import json
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from ..utils.dependencies import get_current_user, get_db
@@ -21,6 +23,87 @@ router = APIRouter()
 client = GeminiClient()
 
 
+async def _generate_tts_audio(text: str, lang_hint: str = None) -> str | None:
+    if not text: return None
+    has_tamil     = bool(re.search(r'[\u0B80-\u0BFF]', text))
+    has_devanag   = bool(re.search(r'[\u0900-\u097F]', text))
+    has_malayalam = bool(re.search(r'[\u0D00-\u0D7F]', text))
+    has_kannada   = bool(re.search(r'[\u0C80-\u0CFF]', text))
+    has_telugu    = bool(re.search(r'[\u0C00-\u0C7F]', text))
+    has_urdu      = bool(re.search(r'[\u0600-\u06FF]', text))
+    has_bengali   = bool(re.search(r'[\u0980-\u09FF]', text))
+    has_gujarati  = bool(re.search(r'[\u0A80-\u0AFF]', text))
+    has_gurmukhi  = bool(re.search(r'[\u0A00-\u0A7F]', text))
+
+    if has_tamil:       voice = 'ta-IN-ValluvarNeural'
+    elif has_malayalam: voice = 'ml-IN-MidhunNeural'
+    elif has_kannada:   voice = 'kn-IN-GaganNeural'
+    elif has_telugu:    voice = 'te-IN-MohanNeural'
+    elif has_urdu:      voice = 'ur-IN-SalmanNeural'
+    elif has_bengali:   voice = 'bn-IN-BashkarNeural'
+    elif has_gujarati:  voice = 'gu-IN-NiranjanNeural'
+    elif has_gurmukhi:  voice = 'pa-IN-OjasNeural'
+    elif has_devanag:   voice = 'hi-IN-MadhurNeural'
+    else:
+        hint = (lang_hint or '').lower()
+        if 'tamil' in hint or 'tanglish' in hint: voice = 'ta-IN-ValluvarNeural'
+        elif 'malayalam' in hint: voice = 'ml-IN-MidhunNeural'
+        elif 'kannada' in hint: voice = 'kn-IN-GaganNeural'
+        elif 'telugu' in hint: voice = 'te-IN-MohanNeural'
+        elif 'hindi' in hint or 'hinglish' in hint or 'marathi' in hint: voice = 'hi-IN-MadhurNeural'
+        elif 'urdu' in hint: voice = 'ur-IN-SalmanNeural'
+        elif 'bengali' in hint: voice = 'bn-IN-BashkarNeural'
+        elif 'gujarati' in hint: voice = 'gu-IN-NiranjanNeural'
+        elif 'punjabi' in hint: voice = 'pa-IN-OjasNeural'
+        else: voice = 'en-IN-PrabhatNeural'
+
+    try:
+        # +10% rate makes the TTS sound much more like a brisk, natural human conversation 
+        # instead of a slow, robotic news-reader.
+        communicate = edge_tts.Communicate(text, voice, rate="+10%", pitch="+0Hz")
+        audio_data = b""
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_data += chunk["data"]
+        return base64.b64encode(audio_data).decode('utf-8')
+    except Exception as e:
+        print(f"[Edge-TTS] Error generating audio (voice={voice}): {e}")
+        if voice != 'en-IN-PrabhatNeural':
+            try:
+                communicate = edge_tts.Communicate(text, 'en-IN-PrabhatNeural', rate="+10%", pitch="+0Hz")
+                audio_data = b""
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        audio_data += chunk["data"]
+                return base64.b64encode(audio_data).decode('utf-8')
+            except Exception as e2:
+                print(f"[Edge-TTS Fallback] Error generating audio (voice=en-IN-PrabhatNeural): {e2}")
+        
+        # Final Fallback to Google Translate TTS if Edge-TTS completely fails in the deployed environment
+        try:
+            print("[TTS] Falling back to Google Translate TTS...")
+            import httpx
+            import urllib.parse
+            # Truncate text to prevent 400 Bad Request on very long strings
+            short_text = text[:200]
+            encoded_text = urllib.parse.quote(short_text)
+            
+            fallback_lang = "en-IN"
+            if lang_hint:
+                if "ta" in lang_hint: fallback_lang = "ta-IN"
+                elif "hi" in lang_hint: fallback_lang = "hi-IN"
+                elif "ml" in lang_hint: fallback_lang = "ml-IN"
+                elif "te" in lang_hint: fallback_lang = "te-IN"
+            
+            url = f"http://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q={encoded_text}&tl={fallback_lang}"
+            async with httpx.AsyncClient() as ac:
+                resp = await ac.get(url, timeout=5.0)
+                if resp.status_code == 200:
+                    return base64.b64encode(resp.content).decode('utf-8')
+            return None
+        except Exception as gtts_e:
+            print(f"[TTS Fallback] Google TTS also failed: {gtts_e}")
+            return None
 @router.get("/api/v1/mcp/tools", response_model=list[dict])
 def list_tools():
     return list_tool_definitions()
@@ -97,27 +180,35 @@ async def natural_language_query(
         try:
             result = execute_tool(db, user, tool_name, params)
             
-            # --- Second Pass: Ask Gemini to summarize the tool result ---
+            ACTION_TOOLS = [
+                "navigate_to_page", "trigger_logout", "create_order",
+                "update_order_status", "update_menu_item", "update_table_status",
+                "update_inventory_stock"
+            ]
+            
             final_assistant_text = assistant_text or f"Invoked tool {tool_name}"
-            actual_user_text = transcribed_user_text if transcribed_user_text else request.prompt
             
-            clean_instructions = build_tool_prompt(user, is_voice=request.is_voice, is_followup=True)
-            
-            followup_prompt = (
-                f"{clean_instructions}\n\n"
-                f"The user said: {actual_user_text}\n"
-                f"You used the tool '{tool_name}' which returned this result:\n{result}\n\n"
-                "Provide a natural, conversational response to the user summarizing this data. "
-                "CRITICAL: Follow the exact same slang, dialect, and font rules as instructed above. "
-                "Respond with valid JSON containing ONLY the key: 'assistant_text'."
-            )
-            try:
-                second_parsed = await client.generate_json(followup_prompt)
-                if "assistant_text" in second_parsed:
-                    final_assistant_text = second_parsed["assistant_text"]
-            except Exception as e:
-                print(f"Error generating follow-up response: {e}")
-            # -----------------------------------------------------------
+            if tool_name not in ACTION_TOOLS:
+                # --- Second Pass: Ask Gemini to summarize the tool result (for READ operations) ---
+                actual_user_text = transcribed_user_text if transcribed_user_text else request.prompt
+                
+                clean_instructions = build_tool_prompt(user, is_voice=request.is_voice, is_followup=True)
+                
+                followup_prompt = (
+                    f"{clean_instructions}\n\n"
+                    f"The user said: {actual_user_text}\n"
+                    f"You used the tool '{tool_name}' which returned this result:\n{result}\n\n"
+                    "Provide a natural, conversational response to the user summarizing this data. "
+                    "CRITICAL: Follow the exact same slang, dialect, and font rules as instructed above. "
+                    "Respond with valid JSON containing ONLY the key: 'assistant_text'."
+                )
+                try:
+                    second_parsed = await client.generate_json(followup_prompt)
+                    if "assistant_text" in second_parsed:
+                        final_assistant_text = second_parsed["assistant_text"]
+                except Exception as e:
+                    print(f"Error generating follow-up response: {e}")
+                # -----------------------------------------------------------
 
             return MCPResponse(
                 assistant_text=final_assistant_text,
@@ -148,46 +239,97 @@ async def natural_language_query(
     )
 
 
-@router.post("/api/v1/mcp/voice/ask", response_model=MCPVoiceResponse)
+@router.post("/api/v1/mcp/voice/ask")
 async def voice_assistant_query(
     request: MCPVoiceRequest,
     user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    text_request = MCPTextRequest(
-        prompt=request.transcribed_text, 
-        restaurant_id=request.restaurant_id,
-        chat_history=request.chat_history,
-        audio_base64=request.audio_base64,
-        is_voice=request.is_voice
-    )
-    response = await natural_language_query(text_request, user=user, db=db)
-    
-    # Generate high-quality TTS audio for regional languages using gTTS
-    audio_base64 = None
-    assistant_text = response.assistant_text
-    if assistant_text:
-        has_tamil = bool(re.search(r'[\u0B80-\u0BFF]', assistant_text))
-        has_hindi = bool(re.search(r'[\u0900-\u097F]', assistant_text))
-        lang = 'ta' if has_tamil else ('hi' if has_hindi else 'en')
-        
-        try:
-            # We use gTTS to generate the audio in-memory
-            tts = gTTS(text=assistant_text, lang=lang, slow=False)
-            fp = io.BytesIO()
-            tts.write_to_fp(fp)
-            fp.seek(0)
-            audio_base64 = base64.b64encode(fp.read()).decode('utf-8')
-        except Exception as e:
-            print(f"Error generating gTTS audio: {e}")
+    async def event_generator():
+        # Build initial prompt
+        prompt = build_tool_prompt(user, is_voice=request.is_voice)
+        history_text = ""
+        if request.chat_history:
+            history_text = "\n--- Conversation History ---\n"
+            for msg in request.chat_history:
+                role = "Assistant" if msg.role == "assistant" else "User"
+                history_text += f"{role}: {msg.text}\n"
+            history_text += "----------------------------\n"
 
-    return MCPVoiceResponse(
-        assistant_text=response.assistant_text,
-        transcribed_user_text=response.transcribed_user_text,
-        tool_name=response.tool_name,
-        tool_result=response.tool_result,
-        audio_payload=audio_base64,
-    )
+        full_prompt = (
+            f"{prompt}\n\n"
+            f"{history_text}"
+            f"User: {request.transcribed_text or 'Audio Payload'}\n"
+            "Respond with valid JSON only."
+        )
+
+        raw_json = ""
+        try:
+            async for chunk in client.generate_json_stream(full_prompt, audio_base64=request.audio_base64):
+                raw_json += chunk
+                yield f"data: {json.dumps({'type': 'llm_chunk', 'chunk': chunk})}\n\n"
+        except Exception as e:
+            print(f"Error streaming JSON from Gemini: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            return
+
+        parsed = client._try_parse_json(raw_json)
+        if not parsed:
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Failed to parse JSON'})}\n\n"
+            return
+            
+        tool_name = parsed.get("tool_name")
+        assistant_text = parsed.get("assistant_text", "")
+        transcribed_user_text = parsed.get("transcribed_user_text", None)
+        params = parsed.get("params", {})
+        
+        if transcribed_user_text:
+            yield f"data: {json.dumps({'type': 'transcription', 'text': transcribed_user_text})}\n\n"
+
+        if tool_name:
+            try:
+                result = execute_tool(db, user, tool_name, params)
+                yield f"data: {json.dumps({'type': 'tool_call', 'tool_name': tool_name, 'tool_result': result})}\n\n"
+                
+                ACTION_TOOLS = [
+                    "navigate_to_page", "trigger_logout", "create_order",
+                    "update_order_status", "update_menu_item", "update_table_status",
+                    "update_inventory_stock"
+                ]
+                
+                if tool_name not in ACTION_TOOLS:
+                    # Second pass
+                    clean_instructions = build_tool_prompt(user, is_voice=request.is_voice, is_followup=True)
+                    actual_user = transcribed_user_text if transcribed_user_text else request.transcribed_text
+                    followup_prompt = (
+                        f"{clean_instructions}\n\n"
+                        f"The user said: {actual_user}\n"
+                        f"You used the tool '{tool_name}' which returned this result:\n{result}\n\n"
+                        "Provide a natural, conversational response summarizing this data in the appropriate regional language. "
+                        "Respond with valid JSON containing ONLY the key: 'assistant_text'."
+                    )
+                    
+                    second_raw = ""
+                    yield f"data: {json.dumps({'type': 'second_pass_start'})}\n\n"
+                    try:
+                        async for chunk in client.generate_json_stream(followup_prompt):
+                            second_raw += chunk
+                            yield f"data: {json.dumps({'type': 'llm_chunk', 'chunk': chunk})}\n\n"
+                        second_parsed = client._try_parse_json(second_raw)
+                        if second_parsed and "assistant_text" in second_parsed:
+                            assistant_text = second_parsed["assistant_text"]
+                    except Exception as e:
+                        print(f"Error in second pass: {e}")
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+        if assistant_text:
+            audio_base64 = await _generate_tts_audio(assistant_text)
+            yield f"data: {json.dumps({'type': 'audio', 'payload': audio_base64})}\n\n"
+
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.post("/api/v1/mcp/voice/tts", response_model=MCPVoiceResponse)
