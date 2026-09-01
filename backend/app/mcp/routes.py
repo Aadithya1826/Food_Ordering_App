@@ -285,8 +285,7 @@ async def voice_assistant_query(
                         last_processed_idx += boundary_idx
                         if sentence:
                             audio_chunk = await _generate_tts_audio(sentence)
-                            if audio_chunk:
-                                yield f"data: {json.dumps({'type': 'audio', 'payload': audio_chunk})}\n\n"
+                            yield f"data: {json.dumps({'type': 'audio', 'payload': audio_chunk, 'fallbackText': sentence})}\n\n"
             
             # Flush remaining unprocessed text at the end of the stream
             match = re.search(r'"assistant_text"\s*:\s*"((?:[^"\\]|\\.)*)', current_live_text)
@@ -295,8 +294,7 @@ async def voice_assistant_query(
                 unprocessed = text_so_far[last_processed_idx:].strip()
                 if unprocessed:
                     audio_chunk = await _generate_tts_audio(unprocessed)
-                    if audio_chunk:
-                        yield f"data: {json.dumps({'type': 'audio', 'payload': audio_chunk})}\n\n"
+                    yield f"data: {json.dumps({'type': 'audio', 'payload': audio_chunk, 'fallbackText': unprocessed})}\n\n"
                         
             result_container.append(raw_text)
 
