@@ -81,28 +81,29 @@ async def _generate_tts_audio(text: str, lang_hint: str = None) -> str | None:
         
         # Final Fallback to Google Translate TTS if Edge-TTS completely fails in the deployed environment
         try:
-            print("[TTS] Falling back to Google Translate TTS...")
-            import httpx
-            import urllib.parse
-            # Truncate text to prevent 400 Bad Request on very long strings
-            short_text = text[:200]
-            encoded_text = urllib.parse.quote(short_text)
+            print("[TTS] Falling back to gTTS...")
+            import asyncio
+            from gtts import gTTS
+            import io
             
-            fallback_lang = "en-IN"
+            def run_gtts(text_to_speak, lang):
+                tts = gTTS(text=text_to_speak, lang=lang)
+                fp = io.BytesIO()
+                tts.write_to_fp(fp)
+                fp.seek(0)
+                return base64.b64encode(fp.read()).decode('utf-8')
+            
+            fallback_lang = "en"
             if lang_hint:
-                if "ta" in lang_hint: fallback_lang = "ta-IN"
-                elif "hi" in lang_hint: fallback_lang = "hi-IN"
-                elif "ml" in lang_hint: fallback_lang = "ml-IN"
-                elif "te" in lang_hint: fallback_lang = "te-IN"
+                if "ta" in lang_hint: fallback_lang = "ta"
+                elif "hi" in lang_hint: fallback_lang = "hi"
+                elif "ml" in lang_hint: fallback_lang = "ml"
+                elif "te" in lang_hint: fallback_lang = "te"
             
-            url = f"http://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q={encoded_text}&tl={fallback_lang}"
-            async with httpx.AsyncClient() as ac:
-                resp = await ac.get(url, timeout=5.0)
-                if resp.status_code == 200:
-                    return base64.b64encode(resp.content).decode('utf-8')
-            return None
+            # Run the blocking gTTS call in a background thread to prevent pausing the event loop
+            return await asyncio.to_thread(run_gtts, text, fallback_lang)
         except Exception as gtts_e:
-            print(f"[TTS Fallback] Google TTS also failed: {gtts_e}")
+            print(f"[TTS Fallback] gTTS also failed: {gtts_e}")
             return None
 @router.get("/api/v1/mcp/tools", response_model=list[dict])
 def list_tools():
