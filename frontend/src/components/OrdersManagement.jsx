@@ -325,18 +325,55 @@ const OrdersManagement = () => {
             return o.status === activeMobileTab;
           }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(order => (
             <div key={order.order_id} style={{ background: 'white', borderRadius: '12px', padding: '12px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <span style={{ color: '#ff6b35', fontWeight: '800', fontSize: '13px' }}>#{order.order_id}</span>
-                <span style={{ background: '#f5f5f5', color: '#888', padding: '4px 8px', borderRadius: '8px', fontSize: '10px', fontWeight: '700' }}>{timeAgo(order.created_at)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: '#ff6b35', fontWeight: '800', fontSize: '13px' }}>#{order.branch_order_id || order.order_id}</span>
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: '700',
+                    padding: '2px 6px',
+                    borderRadius: '10px',
+                    background: order.payment_status?.toLowerCase() === 'paid' ? '#e6f4ea' : '#fde8e8',
+                    color: order.payment_status?.toLowerCase() === 'paid' ? '#1e7e34' : '#e02424',
+                  }}>
+                    • {order.payment_status?.toLowerCase() === 'paid' ? (order.payment_method || 'Paid') : 'Pay at Counter'}
+                  </span>
+                </div>
+                <span style={{ background: '#f5f5f5', color: '#888', padding: '2px 6px', borderRadius: '8px', fontSize: '10px', fontWeight: '700' }}>{timeAgo(order.created_at)}</span>
               </div>
+
+              {(order.customer_name || order.customer_phone) && (
+                <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                  {order.customer_name && (
+                    <span style={{ background: '#fff', border: '1px solid #ffd8cc', color: '#ff6b35', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: '600', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      👤 {order.customer_name}
+                    </span>
+                  )}
+                  {order.customer_phone && (
+                    <span style={{ background: '#fff', border: '1px solid #ffd8cc', color: '#ff6b35', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: '600' }}>
+                      📞 {order.customer_phone}
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div style={{ fontSize: '12px', fontWeight: '600', color: '#111', marginBottom: '12px', lineHeight: '1.5', flex: 1 }}>
                 {order.items?.map(i => `${i.name} x${i.quantity}`).join(', ')}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid #f5f5f5', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #f5f5f5', paddingBottom: '8px' }}>
                 <span style={{ fontSize: '11px', color: '#888', fontWeight: '500' }}>
                   {isDelivery(order) ? 'Delivery' : isTakeaway(order) ? 'Takeaway' : `Table ${order.table_number}`}
                 </span>
                 <span style={{ fontSize: '14px', fontWeight: '800', color: '#111' }}>₹ {order.total_amount}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', fontSize: '11px' }}>
+                <span style={{ fontWeight: '700', color: order.payment_status?.toLowerCase() === 'paid' ? '#1e7e34' : '#e02424' }}>
+                  {order.payment_status?.toLowerCase() === 'paid' ? 'Paid' : 'Unpaid'}
+                </span>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button onClick={() => updatePaymentStatus(order.order_id, true)} style={{ padding: '2px 6px', fontSize: '10px', borderRadius: '10px', border: 'none', background: order.payment_status?.toLowerCase() === 'paid' ? '#10B981' : '#eee', color: order.payment_status?.toLowerCase() === 'paid' ? '#fff' : '#666', cursor: 'pointer' }}>✓</button>
+                  <button onClick={() => updatePaymentStatus(order.order_id, false)} style={{ padding: '2px 6px', fontSize: '10px', borderRadius: '10px', border: 'none', background: order.payment_status?.toLowerCase() !== 'paid' ? '#EF4444' : '#eee', color: order.payment_status?.toLowerCase() !== 'paid' ? '#fff' : '#666', cursor: 'pointer' }}>✗</button>
+                </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                 <button onClick={() => setSelectedKOTOrder(order)} style={{ flex: 1, padding: '10px 0', background: '#f5f5f5', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#888', cursor: 'pointer' }}>Details</button>
@@ -435,13 +472,36 @@ const OrdersManagement = () => {
                       e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.02)';
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <span style={{ fontWeight: '700', fontSize: '14px', color: column.iconBg }}>#{order.order_id}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: '700', fontSize: '15px', color: column.iconBg }}>
+                          #{order.branch_order_id || order.order_id}
+                        </span>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          background: order.payment_status?.toLowerCase() === 'paid' ? '#e6f4ea' : '#fde8e8',
+                          color: order.payment_status?.toLowerCase() === 'paid' ? '#1e7e34' : '#e02424',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          • {order.payment_status?.toLowerCase() === 'paid' ? (order.payment_method || 'Paid') : 'Pay at Counter'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>
+                        🕒 {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
                       <span style={{ 
                         fontSize: '11px', 
                         background: '#f4f4f6', 
-                        padding: '4px 10px', 
-                        borderRadius: '16px',
+                        padding: '2px 8px', 
+                        borderRadius: '12px',
                         color: 'var(--text-secondary)',
                         fontWeight: '600'
                       }}>
@@ -449,11 +509,52 @@ const OrdersManagement = () => {
                       </span>
                     </div>
 
+                    {(order.customer_name || order.customer_phone) && (
+                      <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                        {order.customer_name && (
+                          <span style={{
+                            background: '#fff',
+                            border: '1px solid #ffd8cc',
+                            color: '#ff6b35',
+                            padding: '3px 8px',
+                            borderRadius: '8px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            maxWidth: '140px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            👤 {order.customer_name}
+                          </span>
+                        )}
+                        {order.customer_phone && (
+                          <span style={{
+                            background: '#fff',
+                            border: '1px solid #ffd8cc',
+                            color: '#ff6b35',
+                            padding: '3px 8px',
+                            borderRadius: '8px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            📞 {order.customer_phone}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     <div style={{ 
                       fontSize: '13px', 
                       color: 'var(--text-dark)', 
                       fontWeight: '600', 
-                      marginBottom: '20px', 
+                      marginBottom: '16px', 
                       lineHeight: '1.6' 
                     }}>
                       {order.items?.map(i => `${i.name} x${i.quantity}`).join(', ')}
@@ -463,12 +564,12 @@ const OrdersManagement = () => {
                       display: 'flex', 
                       justifyContent: 'space-between', 
                       alignItems: 'center',
-                      marginBottom: '16px'
+                      marginBottom: '14px'
                     }}>
                       <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>
                         {isDelivery(order) ? 'Delivery' : isTakeaway(order) ? 'Takeaway' : `Table ${order.table_number}`}
                       </span>
-                      <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)' }}>₹ {order.total_amount}</span>
+                      <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)' }}>₹ {order.total_amount}</span>
                     </div>
 
                     <div style={{
@@ -476,46 +577,79 @@ const OrdersManagement = () => {
                       flexDirection: 'column',
                       gap: '8px'
                     }}>
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '4px',
+                        paddingTop: '8px',
+                        borderTop: '1px solid #f0f0f0',
+                        fontSize: '12px'
+                      }}>
+                        <span style={{
+                          fontWeight: '700',
+                          fontSize: '11px',
+                          color: order.payment_status?.toLowerCase() === 'paid' ? '#1e7e34' : '#e02424'
+                        }}>
+                          • Payment: {order.payment_status?.toUpperCase() === 'PAID' ? 'PAID' : 'UNPAID'}
+                        </span>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button 
+                            onClick={() => updatePaymentStatus(order.order_id, true)}
+                            style={{
+                              padding: '2px 8px',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              borderRadius: '12px',
+                              border: 'none',
+                              background: order.payment_status?.toLowerCase() === 'paid' ? '#10B981' : '#f0f0f0',
+                              color: order.payment_status?.toLowerCase() === 'paid' ? '#fff' : '#666',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            ✓ Paid
+                          </button>
+                          <button 
+                            onClick={() => updatePaymentStatus(order.order_id, false)}
+                            style={{
+                              padding: '2px 8px',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              borderRadius: '12px',
+                              border: 'none',
+                              background: order.payment_status?.toLowerCase() !== 'paid' ? '#EF4444' : '#f0f0f0',
+                              color: order.payment_status?.toLowerCase() !== 'paid' ? '#fff' : '#666',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            ✗ Unpaid
+                          </button>
+                        </div>
+                      </div>
+
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                         <button onClick={() => setSelectedKOTOrder(order)} style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: '1px solid #e0e0e0', background: 'transparent', fontSize: '11px', fontWeight: '600', color: '#666', cursor: 'pointer' }}>
                           Details
                         </button>
                         
                         {order.status === 'PENDING' || order.status === 'CONFIRMED' ? (
-                          <button onClick={() => updateOrderStatus(order.order_id, 'PREPARING')} style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#ff6b35', fontSize: '11px', fontWeight: '600', color: '#fff', cursor: 'pointer' }}>
+                          <button onClick={() => updateOrderStatus(order.order_id, 'PREPARING')} style={{ flex: 1.5, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#ff6b35', fontSize: '11px', fontWeight: '700', color: '#fff', cursor: 'pointer' }}>
                             Start Preparing
                           </button>
                         ) : order.status === 'PREPARING' ? (
-                          <button onClick={() => updateOrderStatus(order.order_id, 'READY')} style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#ff6b35', fontSize: '11px', fontWeight: '600', color: '#fff', cursor: 'pointer' }}>
+                          <button onClick={() => updateOrderStatus(order.order_id, 'READY')} style={{ flex: 1.5, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#fbb117', fontSize: '11px', fontWeight: '700', color: '#fff', cursor: 'pointer' }}>
                             Mark Ready
                           </button>
                         ) : order.status === 'READY' ? (
-                          <button onClick={() => updateOrderStatus(order.order_id, 'SERVED')} style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#ff6b35', fontSize: '11px', fontWeight: '600', color: '#fff', cursor: 'pointer' }}>
+                          <button onClick={() => updateOrderStatus(order.order_id, 'SERVED')} style={{ flex: 1.5, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#2d7a4a', fontSize: '11px', fontWeight: '700', color: '#fff', cursor: 'pointer' }}>
                             {orderMode === 'TAKEAWAY' ? 'Mark Picked up' : orderMode === 'DELIVERY' ? 'Mark Dispatched' : 'Mark Served'}
                           </button>
                         ) : (
-                          <button style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#e0e0e0', fontSize: '11px', fontWeight: '600', color: '#666', cursor: 'not-allowed' }}>
+                          <button style={{ flex: 1.5, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#e0e0e0', fontSize: '11px', fontWeight: '600', color: '#666', cursor: 'not-allowed' }}>
                             {orderMode === 'TAKEAWAY' ? 'Picked up' : orderMode === 'DELIVERY' ? 'Dispatched' : 'Completed'}
                           </button>
                         )}
                       </div>
-
-                      {order.payment_method?.toLowerCase() === 'cash' && (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
-                          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>Payment (Cash):</span>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                            <input 
-                              type="checkbox" 
-                              checked={order.payment_status?.toLowerCase() === 'paid'}
-                              onChange={(e) => updatePaymentStatus(order.order_id, e.target.checked)}
-                              style={{ cursor: 'pointer' }}
-                            />
-                            <span style={{ fontSize: '12px', fontWeight: '500', color: order.payment_status?.toLowerCase() === 'paid' ? '#2d7a4a' : '#ff8c42' }}>
-                              {order.payment_status?.toLowerCase() === 'paid' ? 'Paid' : 'Pending'}
-                            </span>
-                          </label>
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}

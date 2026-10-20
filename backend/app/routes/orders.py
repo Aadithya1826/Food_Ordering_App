@@ -28,9 +28,15 @@ def get_live_orders(
     require_role(user, ["HOTEL_ADMIN", "SUPER_ADMIN"])
 
     restaurant_id = resolve_restaurant_id(user, restaurant_id)
+    cutoff = datetime.utcnow() - timedelta(hours=12)
     query = db.query(Order).options(
         joinedload(Order.items).joinedload(OrderItem.menu_item)
-    ).filter(Order.status != "SERVED")
+    ).filter(
+        or_(
+            Order.status != "SERVED",
+            Order.created_at >= cutoff
+        )
+    )
     if restaurant_id is not None:
         query = query.filter(Order.restaurant_id == restaurant_id)
 
@@ -52,16 +58,31 @@ def get_live_orders(
         # If SERVED, it's typically paid. If PENDING, maybe pending.
         p_status = o.payment_status or ("Paid" if o.status in ["SERVED", "COMPLETED"] else "Pending")
 
+        # Resolve customer name
+        customer_name = getattr(o, 'customer_name', None)
+        if not customer_name and o.customer_phone:
+            from ..models.customer import Customer
+            cust = db.query(Customer).filter(Customer.phone == o.customer_phone).first()
+            if cust and cust.name:
+                customer_name = cust.name
+        if not customer_name:
+            customer_name = o.customer_phone or "Guest"
+
         response.append({
             "order_id": o.id,
+            "branch_order_id": o.branch_order_id,
+            "bill_no": o.bill_no,
             "table_number": resolve_order_table_number(o, table_number_map),
             "status": o.status,
             "payment_method": method,
             "payment_status": p_status,
             "total_amount": o.total_amount,
             "created_at": o.created_at,
+            "items": items,
             "order_type": o.order_type,
-            "items": items
+            "customer_phone": o.customer_phone,
+            "customer_name": customer_name,
+            "delivery_address": o.delivery_address_snapshot,
         })
 
     return response
@@ -83,6 +104,10 @@ def update_status(
     require_restaurant_access(user, order.restaurant_id)
     order.status = data.status
     
+    # Sync delivery assignment & status if this is a delivery order
+    from ..services.delivery_status import sync_order_delivery_on_status_change
+    sync_order_delivery_on_status_change(db, order, data.status)
+
     # Auto-release table if order is completed or cancelled
     if data.status in ["COMPLETED", "CANCELLED"] and order.table_id:
         from ..models.table import Table
@@ -184,16 +209,31 @@ def get_all_orders(
         # If SERVED, it's typically paid. If PENDING, maybe pending.
         p_status = o.payment_status or ("Paid" if o.status in ["SERVED", "COMPLETED"] else "Pending")
 
+        # Resolve customer name
+        customer_name = getattr(o, 'customer_name', None)
+        if not customer_name and o.customer_phone:
+            from ..models.customer import Customer
+            cust = db.query(Customer).filter(Customer.phone == o.customer_phone).first()
+            if cust and cust.name:
+                customer_name = cust.name
+        if not customer_name:
+            customer_name = o.customer_phone or "Guest"
+
         response.append({
             "order_id": o.id,
+            "branch_order_id": o.branch_order_id,
+            "bill_no": o.bill_no,
             "table_number": resolve_order_table_number(o, table_number_map),
             "status": o.status,
             "payment_method": method,
             "payment_status": p_status,
             "total_amount": o.total_amount,
             "created_at": o.created_at,
+            "items": items,
             "order_type": o.order_type,
-            "items": items
+            "customer_phone": o.customer_phone,
+            "customer_name": customer_name,
+            "delivery_address": o.delivery_address_snapshot,
         })
 
     return response
@@ -211,7 +251,10 @@ class PosOrderPayload(BaseModel):
     payment_method: str = "Cash"
     cart: List[PosCartItem] = []
     total_amount: float = 0
+    bill_no: Optional[int] = None
     timestamp: Optional[str] = None
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
 
 from ..models.table import Table
 
@@ -230,7 +273,8 @@ def create_pos_order(
 
         is_takeaway = (
             not payload.table_number or 
-            payload.table_number.lower().replace(" ", "").replace("-", "") == "takeaway"
+            payload.table_number.lower().replace(" ", "").replace("-", "") == "takeaway" or
+            (payload.order_type and payload.order_type.upper() == "TAKEAWAY")
         )
         if is_takeaway:
             table_id = None
@@ -249,8 +293,19 @@ def create_pos_order(
                 db.refresh(table)
             table_id = table.id
 
-        status = "SERVED" if payload.payment_method.lower() in ["cash", "upi", "card"] else "PENDING"
+        # Takeaway orders show in Live Orders (KDS) under "New Orders" as PENDING so kitchen can prepare them
+        if is_takeaway or (payload.order_type and payload.order_type.upper() == "TAKEAWAY"):
+            status = "PENDING"
+        else:
+            status = "SERVED" if payload.payment_method.lower() in ["cash", "upi", "card"] else "PENDING"
         payment_status = "Paid" if payload.payment_method.lower() in ["cash", "upi", "card"] else "Pending"
+
+        # Calculate continuous branch_order_id
+        last_order = db.query(Order).filter(Order.restaurant_id == res_id).order_by(Order.branch_order_id.desc().nullslast()).first()
+        next_branch_order_id = (last_order.branch_order_id + 1) if last_order and last_order.branch_order_id else 1
+
+        cust_name_clean = payload.customer_name.strip() if payload.customer_name and payload.customer_name.strip() else None
+        cust_phone_clean = payload.customer_phone.strip() if payload.customer_phone and payload.customer_phone.strip() else None
 
         new_order = Order(
             restaurant_id=res_id,
@@ -260,7 +315,11 @@ def create_pos_order(
             status=status,
             payment_status=payment_status,
             payment_method=payload.payment_method,
-            order_type=payload.order_type.upper() if payload.order_type else "DINE_IN"
+            order_type=payload.order_type.upper() if payload.order_type else "DINE_IN",
+            bill_no=payload.bill_no,
+            branch_order_id=next_branch_order_id,
+            customer_name=cust_name_clean,
+            customer_phone=cust_phone_clean
         )
         
         if payload.timestamp:
@@ -276,6 +335,19 @@ def create_pos_order(
         db.commit()
         db.refresh(new_order)
 
+        if cust_phone_clean:
+            try:
+                from ..models.customer import Customer
+                cust = db.query(Customer).filter(Customer.phone == cust_phone_clean).first()
+                if not cust and cust_name_clean:
+                    db.add(Customer(phone=cust_phone_clean, name=cust_name_clean))
+                    db.commit()
+                elif cust and cust_name_clean and (not cust.name or cust.name == "Guest"):
+                    cust.name = cust_name_clean
+                    db.commit()
+            except Exception as e:
+                print("Customer sync note:", e)
+
         for item in payload.cart:
             order_item = OrderItem(
                 order_id=new_order.id,
@@ -286,7 +358,7 @@ def create_pos_order(
             db.add(order_item)
         db.commit()
 
-        return {"orderId": new_order.id, "message": "Order created successfully"}
+        return {"orderId": new_order.id, "branch_order_id": new_order.branch_order_id, "bill_no": new_order.bill_no, "message": "Order created successfully"}
     except Exception as e:
         import traceback
         return {"error": str(e), "traceback": traceback.format_exc()}

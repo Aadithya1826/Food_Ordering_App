@@ -22,7 +22,10 @@ class Order(Base):
     status = Column(String, index=True, nullable=True)
     payment_method = Column(String, nullable=True)
     payment_status = Column(String, nullable=True)
+    order_type = Column(String, nullable=True)
     total_amount = Column(Float, nullable=True)
+    customer_phone = Column(String, nullable=True, index=True)
+    customer_name = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -36,7 +39,7 @@ class OrderItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), index=True)
     menu_item_id = Column(Integer, ForeignKey("menu_items.id"), index=True)
-    quantity = Column(Integer)
+    quantity = Column(Float)
     price = Column(Float)
     
     order = relationship("Order", back_populates="items")
